@@ -193,6 +193,7 @@ table.list select{max-width:220px;padding:4px;border-radius:6px;border:1px solid
 .tline .c{font-family:var(--mono);font-weight:500}
 .tline .r{font-size:12px;color:var(--ink-3);grid-column:2/-1}
 .tline.head{background:var(--sunk);font-weight:600}
+.tline.sub{background:var(--surface);font-size:13px;color:var(--ink-2);border-bottom:1px dashed var(--line)}
 
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:8px;font-size:14px;z-index:30;max-width:calc(100% - 32px)}
 
@@ -750,6 +751,55 @@ const TAR = (() => {
   return {by8, by6, byHead, units:list("unitOfMeasurment"), pkgs:list("typeOfPackage"), regimes:list("customsRegime"), addl:list("additionalCode"), countries:list("country")};
 })();
 const tline = c => TAR?.by8.get(c) || null;
+/* A tariff line's own text ("--- Complete Built Up (CBU)") only means something under its heading and
+   subheading, which come from the HS 2022 nomenclature. Used for display and search only: the XML keeps
+   the official line text exactly. */
+const HSX = (T && T.hs) || {chapters:{}, headings:{}, subheadings:{}};
+const bare = d => String(d || "").replace(/^[\s\-–]+/, "").trim();
+const headingText = c => HSX.headings[c.slice(0,4)] || "";
+const subText = c => HSX.subheadings[c.slice(0,6)] || "";
+// "Electric generating sets; …75kVA but not exceeding 375kVA → Complete Built Up (CBU)"
+function fullName(l){
+  const sub = subText(l.c), own = bare(l.d);
+  if (!sub) return own;
+  return l.c.slice(6) === "00" && (/^other$/i.test(own) || sub.toLowerCase().includes(own.toLowerCase().slice(0, 20))) ? sub : `${sub} → ${own}`;
+}
+const searchText = new Map();
+// ---- lookup search (display only; never used to choose a code for the XML) ----
+// Words match at the start of a word, by stem ("generator" finds "generating"), plus a few everyday synonyms.
+const STOP = new Set(["of","for","the","and","or","a","an","with","in","to","on","by","set","sets","other","type","model","brand","size"]);
+const SYN = {shoe:["footwear"], boot:["footwear"], sandal:["footwear"], slipper:["footwear"], generator:["generating"], pipe:["pipe","tube"], hose:["hose","tube"],
+  bulb:["lamp"], light:["lamp","light"], phone:["telephone"], mobile:["telephone"], laptop:["computer","data processing"], tv:["television"], fridge:["refrigerat"],
+  car:["vehicle","car"], truck:["vehicle","truck"], trolley:["truck","trolley"], glove:["glove"], shirt:["shirt"], wire:["wire","conductor"], cable:["cable","conductor"],
+  screwdriver:["screwdriver"], plier:["plier"], charger:["charger","static converter"], battery:["accumulator","batter"], solar:["photovoltaic","solar"]};
+function stem(w){ const x = w.replace(/(isations?|izations?|ations?|ators?|ating|ation|ings?|ers?|ors?|ies|es|s|ed|ly)$/, ""); return x.length >= 4 ? x : w; }
+function queryWords(q){
+  const w = q.toLowerCase().normalize("NFKD").replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(Boolean);
+  const k = w.filter(x => !STOP.has(x));
+  return (k.length ? k : w).map(x => { const st = stem(x); return [...new Set([st, ...(SYN[st] || SYN[x] || [])])]; });
+}
+const reCache = new Map();
+// a word, or its stem followed by a real ending: "tube" matches "tubes" but not "tubers"
+const ENDINGS = "(s|es|e|ing|ings|ed|er|ers|or|ors|ation|ations|ator|ators|ies|y|ic|al|ally)?";
+const wordRe = a => { let r = reCache.get(a); if (!r) { r = new RegExp("(^|[^a-z0-9])" + a.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ENDINGS + "(?![a-z0-9])"); reCache.set(a, r); } return r; };
+const partsCache = new Map();
+function parts(l){ let p = partsCache.get(l.c); if (!p) { p = [bare(l.d).toLowerCase(), subText(l.c).toLowerCase(), headingText(l.c).toLowerCase()]; partsCache.set(l.c, p); } return p; }
+// 3 = in the line's own text, 2 = in its subheading, 1 = in its heading, 0 = not found
+function level(l, alts){ const p = parts(l); for (let i = 0; i < 3; i++) if (alts.some(a => wordRe(a).test(p[i]))) return 3 - i; return 0; }
+function searchTariff(q){
+  let W = queryWords(q); const N = T.lines.length;
+  let lv = T.lines.map(l => W.map(alts => level(l, alts)));
+  // words that appear nowhere in the tariff (brand names, "PPR") are ignored, and the person is told
+  const known = W.map((_, j) => lv.some(v => v[j] > 0)), ignored = W.filter((_, j) => !known[j]).map(a => a[0]);
+  if (ignored.length && ignored.length < W.length) { W = W.filter((_, j) => known[j]); lv = lv.map(v => v.filter((_, j) => known[j])); }
+  S.lookupIgnored = ignored.length < queryWords(q).length ? ignored : [];
+  const all = T.lines.filter((l, i) => lv[i].every(x => x > 0));
+  if (all.length || W.length < 2) return {res: all, loose: false};
+  const idf = W.map((_, j) => Math.log(N / (1 + lv.filter(v => v[j] > 0).length)));
+  const scored = T.lines.map((l, i) => [l, lv[i].reduce((s, x, j) => s + (x ? idf[j] * (1 + 0.25 * x) : 0), 0)]).filter(x => x[1] > 0);
+  scored.sort((a, b) => b[1] - a[1] || a[0].c.localeCompare(b[0].c));
+  return {res: scored.map(x => x[0]), loose: true};
+}
 const unitsOf = c => (tline(c)?.u || "").split(/[\s,/]+/).filter(Boolean);
 const rateTxt = l => l ? `duty ${l.r.DR ?? "?"}% · VAT ${l.r.VAT ?? "?"}%${l.r.ER && l.r.ER !== "0" ? ` · excise ${l.r.ER}%` : ""}` : "";
 
@@ -1499,7 +1549,7 @@ function screen3(){
       ${confirmed.length || none.length ? `<details><summary class="muted">Confirmed (${confirmed.length + none.length})</summary><div class="scroll"><table class="list"><tbody>${[...confirmed, ...none].map(i => `<tr><td class="n">${i.rank}</td><td>${esc(i.desc)}</td><td>${S.match[i.rank] ? `lines ${S.match[i.rank].join(", ")}` : "not in the Excel file"}</td><td><button class="link" data-unmatch="${i.rank}">Undo</button></td></tr>`).join("")}</tbody></table></div></details>` : ""}
       ${bad.map(i => { const opts = TAR.by6.get(i.hs.slice(0,6)) || [];
         return `<div class="issue block"><div class="h"><span class="tag block">Not in tariff</span><b>Item ${i.rank}: ${esc(i.desc)}</b></div><span>Its HS code ${hsFmt(i.hs)} is not in the official tariff, so the portal will refuse the file. Choose the correct code (only the HS code of this item changes):</span>
-          ${opts.length ? opts.map(o => `<label class="opt ${S.fixCode[i.rank] === o.c ? "on" : ""}"><input type="radio" name="fix-${i.rank}" data-fix="${i.rank}" value="${o.c}" ${S.fixCode[i.rank] === o.c ? "checked" : ""}><span><b class="mono">${hsFmt(o.c)}</b> ${esc(o.d)} <span class="muted small">· ${rateTxt(o)}</span></span></label>`).join("") : `<span>No tariff lines under ${hsFmt(i.hs).slice(0,7)}. Use the HS code lookup, then fix it in the portal.</span>`}</div>`; }).join("")}
+          ${opts.length ? opts.map(o => `<label class="opt ${S.fixCode[i.rank] === o.c ? "on" : ""}"><input type="radio" name="fix-${i.rank}" data-fix="${i.rank}" value="${o.c}" ${S.fixCode[i.rank] === o.c ? "checked" : ""}><span><b class="mono">${hsFmt(o.c)}</b> ${esc(fullName(o))} <span class="muted small">· ${rateTxt(o)}</span></span></label>`).join("") : `<span>No tariff lines under ${hsFmt(i.hs).slice(0,7)}. Use the HS code lookup, then fix it in the portal.</span>`}</div>`; }).join("")}
     </div>`);
   }
   // B. national codes
@@ -1537,14 +1587,15 @@ function codeQuestion(q){
     <span>There is no Ethiopian tariff line starting with ${s6}. The supplier's HS code may be wrong. Find the right code with the lookup, then type it for these lines.</span>
     <div class="row"><button class="btn sm" data-lookup="${q.s6.slice(0,4)}">Look up ${q.s6.slice(0,4)}</button><input id="lc-${q.s6}" placeholder="8-digit code" style="width:130px;padding:6px 9px;border:1px solid var(--line);border-radius:7px;font-family:var(--mono)"><button class="btn sm primary" data-setcode="${q.s6}">Use for these lines</button></div></div>`;
   return `<div class="issue ${S.code[q.s6] ? "ok" : "block"}"><div class="h"><span class="tag ${S.code[q.s6] ? "ok" : "block"}">${S.code[q.s6] ? "Chosen" : "Choose one"}</span><b>${s6}</b><span class="muted">${plural(q.lines.length, "line")}: ${esc(names)} · Excel says ${[...new Set(q.lines.map(L => hsFmt(lineHS(L).padEnd(8,"0"))))].join(", ")}</span></div>
+    <span><b>${s6}:</b> ${esc(subText(q.s6))} <span class="muted small">(heading ${q.s6.slice(0,4)}: ${esc(headingText(q.s6))})</span></span>
     ${q.opts.map(o => `<label class="opt ${S.code[q.s6] === o.c ? "on" : ""}"><input type="radio" name="c-${q.s6}" data-code6="${q.s6}" value="${o.c}" ${S.code[q.s6] === o.c ? "checked" : ""}><span><b class="mono">${hsFmt(o.c)}</b> ${esc(o.d)}<br><span class="muted small">${o.u ? `unit ${esc(o.u)} · ` : ""}${rateTxt(o)}</span></span></label>`).join("")}
-    <span class="muted small">Descriptions are the official tariff text. Some lines only make sense with their heading: use “HS code lookup” to see the whole heading.</span></div>`;
+    <span class="muted small">Line texts are the official Ethiopian tariff; the subheading text above is from HS 2022. Use “HS code lookup” to see the whole heading.</span></div>`;
 }
 function itemRow(it){
   const open = S.open === it.code, E = S.itemEdit[it.code] || {};
   const pill = it.problems.length ? `<span class="tag block">${plural(it.problems.length, "thing")} to fix</span>` : `<span class="tag ok">Complete</span>`;
   return `<div class="prow"><div style="min-width:0"><div class="name">${esc(it.desc || "(no description)")}</div>
-      <div class="sub"><span class="mono">${hsFmt(it.code)}</span> ${esc(it.t?.d || "")} · ${plural(it.lines.length, "line")} · ${plural(it.pkgs, "package")} · ${kg(it.gross)} kg · ${money(it.usd)} USD${it.units.length ? ` · ${it.units.map(u => `${u.code} ${u.qty ?? "?"}`).join(", ")}` : ""} · procedure ${esc(it.addl)}</div>
+      <div class="sub"><span class="mono">${hsFmt(it.code)}</span> ${esc(it.t ? fullName(it.t).slice(0, 110) + (fullName(it.t).length > 110 ? "…" : "") : "")} · ${plural(it.lines.length, "line")} · ${plural(it.pkgs, "package")} · ${kg(it.gross)} kg · ${money(it.usd)} USD${it.units.length ? ` · ${it.units.map(u => `${u.code} ${u.qty ?? "?"}`).join(", ")}` : ""} · procedure ${esc(it.addl)}</div>
       ${it.problems.length && !open ? `<div class="small" style="color:var(--red)">${esc(it.problems[0])}</div>` : ""}</div>
     <div class="right">${pill}<button class="btn sm" data-open="${it.code}">${open ? "Close" : "Open"}</button></div>
     ${open ? `<div class="more">
@@ -1557,7 +1608,7 @@ function itemRow(it){
         <div class="field"><label for="e-licence">Licence number</label><input id="e-licence" data-edit="licence" value="${esc(E.licence || "")}"></div>
         <div class="field"><label for="e-docs">Required documents</label><input id="e-docs" data-edit="docs" value="${esc(E.docs || "")}"></div>
       </div>
-      <div class="note"><b>Official tariff: ${hsFmt(it.code)}</b><span>${esc(it.t?.d || "")} · ${it.t?.u ? "unit " + esc(it.t.u) + " · " : "no supplementary unit · "}${rateTxt(it.t)}</span>
+      <div class="note"><b>Official tariff: ${hsFmt(it.code)}</b><span>${esc(headingText(it.code))}</span><span>${esc(subText(it.code))}</span><span>Tariff line: <b>${esc(it.t?.d || "")}</b> (this exact text goes into the XML) · ${it.t?.u ? "unit " + esc(it.t.u) + " · " : "no supplementary unit · "}${rateTxt(it.t)}</span>
         <span class="small">Gross weight: ${it.grossShared ? "shared from carton weights by net weight (some cartons hold other products too)" : "carton weights exactly as in Excel"}.</span></div>
       <div class="scroll"><table class="lines"><thead><tr><th>Line</th><th>Excel description</th><th>Excel HS</th><th class="n">Qty</th><th class="n">Net kg</th><th class="n">USD</th><th></th></tr></thead><tbody>
         ${it.lines.map(L => `<tr><td>${L.no}</td><td>${esc(lineDesc(L))}</td><td class="mono">${hsFmt(lineHS(L).padEnd(8,"0"))}</td><td class="n">${L.qty ?? ""} ${esc(L.unit)}</td><td class="n">${kg(lineVal(L, "net"))}</td><td class="n">${money(lineVal(L, "amount"))}</td>
@@ -1607,16 +1658,20 @@ function renderLookup(){
   let res = [];
   if (T && q) {
     if (/^\d{2,}$/.test(digits)) res = T.lines.filter(l => l.c.startsWith(digits.slice(0, 8)));
-    else { const w = q.toLowerCase().split(/\s+/).filter(Boolean); res = T.lines.filter(l => w.every(x => l.d.toLowerCase().includes(x))); }
+    else { const r = searchTariff(q); res = r.res; S.lookupLoose = r.loose; }
   }
-  const byHead = new Map(); for (const l of res.slice(0, 400)) { const h = l.c.slice(0,4); if (!byHead.has(h)) byHead.set(h, []); byHead.get(h).push(l); }
+  const byHead = new Map(); for (const l of res.slice(0, S.lookupLoose ? 60 : 400)) { const h = l.c.slice(0,4); if (!byHead.has(h)) byHead.set(h, []); byHead.get(h).push(l); }
+  const lineRow = l => `<div class="tline"><span class="c">${hsFmt(l.c)}</span><span>${esc(bare(l.d))}</span><span class="muted small">${l.u ? esc(l.u) : ""}</span><span class="r">${rateTxt(l)}</span></div>`;
+  const subBlock = ls => { const out = []; let cur = null;
+    for (const l of ls) { const s6 = l.c.slice(0,6); if (s6 !== cur) { cur = s6; out.push(`<div class="tline sub"><span class="c muted">${s6.slice(0,4)}.${s6.slice(4)}</span><span>${esc(subText(l.c))}</span></div>`); } out.push(lineRow(l)); }
+    return out.join(""); };
   D.innerHTML = `<div class="drawer" data-close="1"><div class="inner" role="dialog" aria-label="HS code lookup">
     <div style="display:flex;align-items:center;gap:10px"><h2 style="font-size:22px;margin-right:auto">HS code lookup</h2><button class="btn sm" data-close="1">Close</button></div>
-    <p class="muted">The official Ethiopian customs tariff (${T ? T.count.toLocaleString() + " lines, downloaded " + T.fetched + " from customs.erca.gov.et" : "not loaded"}). Search by code (at least 2 digits) or by words.</p>
-    <input id="lookup-q" value="${esc(q)}" placeholder="e.g. 8414 or compressor" style="padding:11px 13px;border:1px solid var(--line);border-radius:10px;font-size:16px;background:var(--surface)" autofocus>
-    ${q ? `<p class="muted small">${res.length.toLocaleString()} ${res.length === 1 ? "line" : "lines"}${res.length > 400 ? ", showing the first 400" : ""}</p>` : ""}
-    ${[...byHead.entries()].map(([h, ls]) => `<div class="tres"><div class="tline head"><span class="c">${h}</span><span>${plural((TAR.byHead.get(h) || []).length, "line")} in this heading</span><button class="link" data-lookup="${h}">Show all</button></div>
-      ${ls.map(l => `<div class="tline"><span class="c">${hsFmt(l.c)}</span><span>${esc(l.d)}</span><span class="muted small">${l.u ? esc(l.u) : ""}</span><span class="r">${rateTxt(l)}</span></div>`).join("")}</div>`).join("")}
+    <p class="muted">The official Ethiopian customs tariff (${T ? T.count.toLocaleString() + " lines, downloaded " + T.fetched + " from customs.erca.gov.et" : "not loaded"}), with heading and subheading texts from the HS 2022 nomenclature. Search by code (at least 2 digits) or by words, e.g. “diesel generating”.</p>
+    <input id="lookup-q" value="${esc(q)}" placeholder="e.g. 8502 or diesel generating" style="padding:11px 13px;border:1px solid var(--line);border-radius:10px;font-size:16px;background:var(--surface)" autofocus>
+    ${q ? `<p class="muted small">${res.length.toLocaleString()} ${res.length === 1 ? "line" : "lines"}${res.length > (S.lookupLoose ? 60 : 400) ? `, showing the first ${S.lookupLoose ? 60 : 400}` : ""}${S.lookupIgnored?.length && !/^\d/.test(q) ? `. Not in the tariff, so ignored: “${S.lookupIgnored.map(esc).join("”, “")}”` : ""}${res.length && S.lookupLoose ? ". No line has all your words, so these are the closest matches, best first." : ""}${res.length === 0 && !/^\d/.test(q) ? ". Try fewer or different words." : ""}</p>` : ""}
+    ${[...byHead.entries()].map(([h, ls]) => `<div class="tres"><div class="tline head"><span class="c">${h}</span><span>${esc(headingText(h))}</span><button class="link" data-lookup="${h}">All ${(TAR.byHead.get(h) || []).length}</button></div>
+      ${subBlock(ls)}</div>`).join("")}
   </div></div>`;
   const inp = $("lookup-q"); if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
 }

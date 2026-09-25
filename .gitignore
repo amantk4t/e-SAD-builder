@@ -9,3 +9,6 @@ test-one-new-item.xml
 tools/fetch.log
 __pycache__/
 .vercel
+
+# Local tooling
+.claude/
