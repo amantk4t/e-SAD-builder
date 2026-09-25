@@ -1,0 +1,11 @@
+# Client documents and test outputs: never commit these
+testdata/
+test-one-new-item.xml
+*.xlsx
+*-audit.csv
+
+# Local noise
+.DS_Store
+tools/fetch.log
+__pycache__/
+.vercel

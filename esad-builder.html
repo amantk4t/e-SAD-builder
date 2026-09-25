@@ -1,0 +1,1751 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>eSAD Item Builder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="tariff-data.js"></script>
+<style>
+:root{
+  color-scheme:light;
+  --ground:#F2F4F1;--surface:#FFFFFF;--sunk:#EBEFEA;--ink:#16201B;--ink-2:#46534C;--ink-3:#6F7C75;--line:#D4DBD6;
+  --accent:#1D6B4F;--accent-ink:#FFFFFF;--accent-soft:#DAEEE4;
+  --amber:#8A5200;--amber-soft:#FAEACF;--red:#B3261E;--red-soft:#FBE2DF;--blue:#2A5DA8;--blue-soft:#E0E9F7;
+  --xml-tag:#1D6B4F;--new-row:#E6F2EC;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  color-scheme:dark;
+  --ground:#0E1311;--surface:#151C19;--sunk:#1C2521;--ink:#E3EAE6;--ink-2:#ACB9B2;--ink-3:#85928B;--line:#2A3530;
+  --accent:#55BB8E;--accent-ink:#06120C;--accent-soft:#163A2B;
+  --amber:#E6A94B;--amber-soft:#3A2A10;--red:#EF7B71;--red-soft:#3C1916;--blue:#88AAE8;--blue-soft:#17243A;
+  --xml-tag:#6FCB9F;--new-row:#15291F;
+}}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --ground:#0E1311;--surface:#151C19;--sunk:#1C2521;--ink:#E3EAE6;--ink-2:#ACB9B2;--ink-3:#85928B;--line:#2A3530;
+  --accent:#55BB8E;--accent-ink:#06120C;--accent-soft:#163A2B;
+  --amber:#E6A94B;--amber-soft:#3A2A10;--red:#EF7B71;--red-soft:#3C1916;--blue:#88AAE8;--blue-soft:#17243A;
+  --xml-tag:#6FCB9F;--new-row:#15291F;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--ground);color:var(--ink);font:15px/1.5 var(--sans);padding-inline:16px;padding-block:0 64px}
+.wrap{max-width:1100px;margin:0 auto}
+h1,h2,h3{margin:0;text-wrap:balance}
+h1{font-size:18px;font-weight:600}
+h2{font-size:26px;font-weight:700;letter-spacing:-.01em}
+h3{font-size:17px;font-weight:600}
+p{margin:0}
+.lead{font-size:16px;color:var(--ink-2);max-width:66ch}
+.mono,code{font-family:var(--mono);font-size:13px}
+.muted{color:var(--ink-3)}
+.small{font-size:13px}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+.top{display:flex;align-items:center;gap:14px;padding-block:16px 8px;flex-wrap:wrap}
+.top h1{margin-right:auto}
+.link{background:none;border:0;color:var(--ink-2);text-decoration:underline;text-underline-offset:3px;padding:4px}
+.tariff-tag{font-size:12.5px;color:var(--ink-3)}
+
+.steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-block:8px 20px;padding:0;list-style:none}
+.step{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;background:var(--surface);border:1px solid var(--line);color:var(--ink-3);text-align:left;width:100%}
+.step .dot{flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-weight:700;background:var(--sunk);color:var(--ink-3)}
+.step .t{font-weight:600;font-size:14px;line-height:1.25;display:block}
+.step .s{font-size:12.5px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.step .txt{min-width:0}
+.step[aria-current="step"]{border-color:var(--accent);color:var(--ink);box-shadow:0 0 0 1px var(--accent)}
+.step[aria-current="step"] .dot{background:var(--accent);color:var(--accent-ink)}
+.step.done{color:var(--ink-2)}
+.step.done .dot{background:var(--accent-soft);color:var(--accent)}
+.step:disabled{cursor:default;opacity:.6}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:24px;display:grid;gap:20px}
+.section{display:grid;gap:12px}
+.section + .section{border-top:1px solid var(--line);padding-top:20px}
+.nav{display:flex;justify-content:space-between;gap:12px;margin-top:16px;flex-wrap:wrap;align-items:center}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:12px 20px;font-weight:600;font-size:15px;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.btn:hover{border-color:var(--ink-3)}
+.btn.big{padding:15px 28px;font-size:17px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn:disabled{opacity:.4;cursor:not-allowed;filter:none}
+.btn.sm{padding:6px 12px;font-size:13.5px;border-radius:8px}
+.why{font-size:14px;color:var(--red);font-weight:500}
+
+.drop{position:relative;border:2px dashed var(--line);border-radius:14px;padding:36px 20px;display:grid;place-items:center;gap:8px;text-align:center;background:var(--sunk)}
+.drop.drag{border-color:var(--accent);background:var(--accent-soft)}
+.drop input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.drop .big{font-size:19px;font-weight:600}
+.drop .icon{width:54px;height:54px;border-radius:12px;display:grid;place-items:center;font-family:var(--mono);font-weight:500;font-size:13px;background:var(--surface);border:1px solid var(--line);color:var(--accent)}
+.file{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:10px;background:var(--accent-soft);flex-wrap:wrap}
+.file .icon{font-family:var(--mono);font-size:12px;font-weight:500;padding:4px 7px;border-radius:6px;background:var(--surface);color:var(--accent)}
+.file .grow{flex:1;min-width:0}
+.file label{position:relative}
+.file label input{position:absolute;inset:0;opacity:0;cursor:pointer}
+
+.stats{display:flex;flex-wrap:wrap;gap:10px}
+.stat{background:var(--sunk);border-radius:10px;padding:10px 14px;min-width:120px}
+.stat b{display:block;font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.stat span{font-size:13px;color:var(--ink-3)}
+
+/* issues and notes */
+.issue{border:1px solid var(--line);border-left:4px solid var(--amber);border-radius:10px;padding:12px 14px;display:grid;gap:8px;background:var(--surface)}
+.issue.block{border-left-color:var(--red)}
+.issue.ok{border-left-color:var(--accent);opacity:.8}
+.issue .h{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.issue .h b{font-weight:600}
+.issue .row,.note .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.issue input{padding:6px 9px;border:1px solid var(--line);border-radius:7px;background:var(--surface);width:130px;font-family:var(--mono)}
+.tag{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.tag.block{background:var(--red-soft);color:var(--red)}
+.tag.warn{background:var(--amber-soft);color:var(--amber)}
+.tag.ok{background:var(--accent-soft);color:var(--accent)}
+.tag.info{background:var(--blue-soft);color:var(--blue)}
+.tag.gray{background:var(--sunk);color:var(--ink-2)}
+.note{padding:12px 14px;border-radius:10px;background:var(--blue-soft);display:grid;gap:6px}
+.note.bad{background:var(--red-soft)}
+.note.warn{background:var(--amber-soft)}
+.note.good{background:var(--accent-soft)}
+
+.viewer{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface)}
+.viewer-bar{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--sunk);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.viewer-bar .name{font-weight:600;font-size:14px;margin-right:auto}
+.seg{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:2px}
+.seg button{border:0;background:none;padding:5px 12px;border-radius:6px;font-size:13.5px;font-weight:500;color:var(--ink-2)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
+.viewer-body{max-height:60vh;overflow:auto}
+.sheet table{border-collapse:collapse;font-size:12.5px;width:max-content;min-width:100%}
+.sheet td{border:1px solid var(--line);padding:4px 7px;white-space:pre-wrap;max-width:340px;vertical-align:top;font-variant-numeric:tabular-nums}
+pre.xml{margin:0;padding:12px 14px;font:12px/1.5 var(--mono);white-space:pre}
+pre.xml .t{color:var(--xml-tag)}
+pre.xml mark{background:var(--new-row);color:inherit;display:block;margin-inline:-14px;padding-inline:11px;border-left:3px solid var(--accent)}
+.facts{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:1px;background:var(--line);border-bottom:1px solid var(--line)}
+.facts div{background:var(--surface);padding:8px 12px;display:grid}
+.facts span{font-size:12px;color:var(--ink-3)}
+.facts b{font-weight:500;font-size:13.5px;white-space:pre-line}
+
+.scroll{overflow-x:auto}
+table.list{border-collapse:collapse;width:100%;font-size:13.5px}
+table.list th,table.list td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+table.list th{font-size:12px;font-weight:600;color:var(--ink-3);background:var(--sunk);position:sticky;top:0;white-space:nowrap}
+table.list td.n,table.list th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+table.list tr.new td{background:var(--new-row)}
+table.list tr.bad td{background:var(--red-soft)}
+table.list select{max-width:220px;padding:4px;border-radius:6px;border:1px solid var(--line);background:var(--surface)}
+
+.choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.choice{text-align:left;border:2px solid var(--line);background:var(--surface);border-radius:14px;padding:18px;display:grid;gap:6px}
+.choice:hover{border-color:var(--ink-3)}
+.choice[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.choice b{font-size:17px}
+.choice span{color:var(--ink-2);font-size:14px}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border:1px solid var(--line);border-radius:8px;cursor:pointer}
+.opt:hover{border-color:var(--ink-3)}
+.opt input{margin-top:4px;accent-color:var(--accent)}
+.opt.on{border-color:var(--accent);background:var(--accent-soft)}
+
+.fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px 16px}
+.field{display:grid;gap:4px;align-content:start}
+.field.wide{grid-column:1/-1}
+.field label{font-size:13.5px;font-weight:500;color:var(--ink-2)}
+.field input,.field textarea,.field select{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.field input.code{font-family:var(--mono)}
+.field textarea{min-height:60px;resize:vertical}
+.field.missing input,.field.missing select,.field.missing textarea{border-color:var(--red);box-shadow:0 0 0 1px var(--red)}
+.field .src{font-size:12px;color:var(--ink-3)}
+.req{color:var(--red)}
+
+.pick{display:grid;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.prow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--surface)}
+.prow:last-child{border-bottom:0}
+.prow .name{font-weight:600}
+.prow .sub{font-size:13px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.prow .right{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.prow .more{grid-column:1/-1;display:grid;gap:14px;padding-top:10px}
+.lines{font-size:13px;border-collapse:collapse;width:100%}
+.lines td,.lines th{padding:5px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.lines th{font-size:12px;color:var(--ink-3);font-weight:600}
+.lines td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+.checks{display:grid;gap:8px}
+.check{display:grid;grid-template-columns:28px minmax(0,1fr);gap:4px 10px;padding:10px 12px;border-radius:10px;background:var(--sunk)}
+.check .ic{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:14px}
+.check.pass .ic{background:var(--accent);color:var(--accent-ink)}
+.check.fail{background:var(--red-soft)}
+.check.fail .ic{background:var(--red);color:#fff}
+.check .d{grid-column:2;font-size:13px;color:var(--ink-2)}
+.signoff{border:2px solid var(--line);border-radius:12px;padding:16px;display:grid;gap:10px}
+.signoff label.chk{display:flex;gap:10px;align-items:flex-start}
+.signoff input[type=checkbox]{width:20px;height:20px;accent-color:var(--accent);margin-top:2px}
+
+.drawer{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;justify-content:flex-end;z-index:20}
+.drawer .inner{background:var(--ground);width:min(640px,100%);height:100%;overflow:auto;padding:20px 20px calc(20px + env(safe-area-inset-bottom,0px));display:grid;gap:14px;align-content:start}
+.tres{display:grid;gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
+.tline{display:grid;grid-template-columns:120px minmax(0,1fr) auto;gap:4px 12px;padding:9px 12px;border-bottom:1px solid var(--line);font-size:13.5px}
+.tline:last-child{border-bottom:0}
+.tline .c{font-family:var(--mono);font-weight:500}
+.tline .r{font-size:12px;color:var(--ink-3);grid-column:2/-1}
+.tline.head{background:var(--sunk);font-weight:600}
+
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:8px;font-size:14px;z-index:30;max-width:calc(100% - 32px)}
+
+@media (max-width:760px){
+  .step{padding:8px;gap:6px}.step .s{display:none}.step .t{font-size:12.5px}.step .dot{width:24px;height:24px;font-size:13px}
+  .choices{grid-template-columns:1fr}
+  .card{padding:16px}
+  h2{font-size:22px}
+  .prow{grid-template-columns:minmax(0,1fr)}.prow .right{justify-content:flex-start}
+  .tline{grid-template-columns:1fr}.tline .r{grid-column:1}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>eSAD Item Builder</h1>
+    <span class="tariff-tag" id="tariff-tag"></span>
+    <button class="link" id="open-lookup">HS code lookup</button>
+  </header>
+  <ol class="steps" id="steps"></ol>
+  <main id="main"></main>
+</div>
+<div id="drawer"></div>
+<div class="toast" id="toast" hidden></div>
+
+<script type="text/xml" id="skeleton"><TWM_SAD>
+  <Export_release>
+    <Date_of_exit/>
+    <Time_of_exit/>
+    <Actual_office_of_exit_code/>
+    <Actual_office_of_exit_name/>
+    <Exit_reference/>
+    <Comments/>
+  </Export_release>
+  <Previous_owner>
+    <Previous_owner_code/>
+    <Previous_owner_name/>
+  </Previous_owner>
+  <Assessment_notice>
+    <Registration_year/>
+    <Assessment_year/>
+    <Total_item_taxes/>
+    <Statement_number/>
+    <Statement_date/>
+    <Statement_serial/>
+  </Assessment_notice>
+  <Global_taxes>
+    <Tax_code/>
+    <Tax_description/>
+    <Tax_amount>0</Tax_amount>
+  </Global_taxes>
+  <Global_taxes>
+    <Tax_code/>
+    <Tax_description/>
+    <Tax_amount>0</Tax_amount>
+  </Global_taxes>
+  <Global_taxes>
+    <Tax_code/>
+    <Tax_description/>
+    <Tax_amount>0</Tax_amount>
+  </Global_taxes>
+  <Property>
+    <Sad_selected_colour/>
+    <Nbers>
+      <Number_of_loading_lists/>
+      <Total_number_of_items/>
+      <Total_number_of_packages/>
+    </Nbers>
+  </Property>
+  <Sad_origin_colour/>
+  <Is_pre_arrival>false</Is_pre_arrival>
+  <Identification>
+    <Office_segment>
+      <Customs_clearance_office_code/>
+      <Customs_Clearance_office_name/>
+    </Office_segment>
+    <Type>
+      <Type_of_declaration/>
+      <Declaration_gen_procedure_code/>
+      <Type_of_transit_document/>
+    </Type>
+    <Manifest_customs_office_code/>
+    <Manifest_registration_year/>
+    <Manifest_registration_number/>
+    <Manifest_reference_number/>
+    <Manifest_date/>
+    <Registration>
+      <Serial_number/>
+      <Number/>
+      <Date/>
+    </Registration>
+    <Assessment>
+      <Serial_number/>
+      <Number/>
+      <Date/>
+    </Assessment>
+    <Receipt>
+      <Custom_office/>
+      <Serial_number/>
+      <Number/>
+      <Date/>
+    </Receipt>
+  </Identification>
+  <Traders>
+    <Exporter>
+      <Exporter_code/>
+      <Exporter_name/>
+    </Exporter>
+    <Consignee>
+      <Consignee_code/>
+      <Consignee_name/>
+    </Consignee>
+    <Financial>
+      <Financial_code/>
+      <Financial_name/>
+    </Financial>
+  </Traders>
+  <Declarant>
+    <Declarant_code/>
+    <Declarant_name/>
+    <Reference>
+      <Year/>
+      <Number/>
+    </Reference>
+  </Declarant>
+  <General_information>
+    <Country>
+      <Country_first_destination/>
+      <Trading_country/>
+      <Export>
+        <Export_country_code/>
+        <Export_country_name/>
+        <Export_country_region/>
+      </Export>
+      <Destination>
+        <Destination_country_code/>
+        <Destination_country_name/>
+        <Destination_country_region/>
+      </Destination>
+      <Country_of_origin_name/>
+    </Country>
+    <Value_details/>
+    <CAP/>
+  </General_information>
+  <Transport>
+    <Means_of_transport>
+      <Departure_arrival_information>
+        <Identity/>
+        <Nationality/>
+      </Departure_arrival_information>
+      <Border_information>
+        <Identity/>
+        <Nationality/>
+        <Mode/>
+      </Border_information>
+      <Inland_mode_of_transport/>
+    </Means_of_transport>
+    <Container_flag>false</Container_flag>
+    <Delivery_terms>
+      <Code/>
+      <Place/>
+      <Business_Activity/>
+    </Delivery_terms>
+    <Border_office>
+      <Code/>
+      <Name/>
+    </Border_office>
+    <Place_of_loading>
+      <Code/>
+      <Name/>
+    </Place_of_loading>
+    <Location_of_goods/>
+  </Transport>
+  <Financial>
+    <Financial_transaction>
+      <code1/>
+      <code2/>
+    </Financial_transaction>
+    <Bank>
+      <Code/>
+      <Name/>
+      <Branch/>
+      <Reference/>
+    </Bank>
+    <Terms>
+      <Code/>
+      <Description/>
+    </Terms>
+    <Deffered_payment_reference/>
+    <Mode_of_payment/>
+    <Amounts>
+      <Total_manual_taxes/>
+      <Global_taxes/>
+      <Totals_taxes/>
+      <Amount_To_Be_Paid/>
+    </Amounts>
+    <Guarantee>
+      <Amount/>
+      <Date/>
+    </Guarantee>
+  </Financial>
+  <Warehouse>
+    <Identification/>
+    <Delay/>
+  </Warehouse>
+  <Transit>
+    <Destination>
+      <Office/>
+      <Office_name/>
+      <Country/>
+      <Country_name/>
+    </Destination>
+    <Seals>
+      <Number/>
+      <Identity/>
+    </Seals>
+    <Result_of_control/>
+    <Time_limit/>
+    <Officer_name/>
+  </Transit>
+  <Valuation>
+    <Calculation_working_mode>0</Calculation_working_mode>
+    <Weight>
+      <Gross_weight/>
+    </Weight>
+    <Total_cost/>
+    <Total_CIF/>
+    <Gs_Invoice>
+      <Amount_foreign_currency/>
+      <Currency_code/>
+      <Amount_national_currency/>
+      <Currency_name/>
+      <Currency_rate/>
+    </Gs_Invoice>
+    <Gs_external_freight>
+      <Amount_foreign_currency/>
+      <Currency_code/>
+      <Amount_national_currency/>
+      <Currency_name/>
+      <Currency_rate/>
+    </Gs_external_freight>
+    <Gs_internal_freight>
+      <Amount_foreign_currency/>
+      <Currency_code/>
+      <Amount_national_currency/>
+      <Currency_name/>
+      <Currency_rate/>
+    </Gs_internal_freight>
+    <Gs_insurance>
+      <Amount_foreign_currency/>
+      <Currency_code/>
+      <Amount_national_currency/>
+      <Currency_name/>
+      <Currency_rate/>
+    </Gs_insurance>
+    <Gs_other_cost>
+      <Amount_foreign_currency/>
+      <Currency_code/>
+      <Amount_national_currency/>
+      <Currency_name/>
+      <Currency_rate/>
+    </Gs_other_cost>
+    <Gs_deduction>
+      <Amount_foreign_currency/>
+      <Currency_code/>
+      <Amount_national_currency/>
+      <Currency_name/>
+      <Currency_rate/>
+    </Gs_deduction>
+    <Total>
+      <Total_invoice/>
+      <Total_weight/>
+    </Total>
+  </Valuation>
+  <Item>
+    <Rank/>
+    <Packages>
+      <Number_of_packages/>
+      <Marks1_of_packages/>
+      <Marks2_of_packages/>
+      <Kind_of_packages_code/>
+      <Kind_of_packages_name/>
+    </Packages>
+    <Tarification>
+      <HScode>
+        <Commodity_code/>
+        <Precision_1/>
+        <Precision_2/>
+        <Precision_3/>
+        <Precision_4/>
+      </HScode>
+      <Preference_code/>
+      <Extended_customs_procedure/>
+      <National_customs_procedure/>
+      <Quota_code/>
+      <Supplementary_unit>
+        <Supplementary_unit_code/>
+        <Supplementary_unit_name/>
+        <Supplementary_unit_quantity/>
+      </Supplementary_unit>
+      <Supplementary_unit>
+        <Supplementary_unit_code/>
+        <Supplementary_unit_name/>
+        <Supplementary_unit_quantity/>
+      </Supplementary_unit>
+      <Supplementary_unit>
+        <Supplementary_unit_code/>
+        <Supplementary_unit_name/>
+        <Supplementary_unit_quantity/>
+      </Supplementary_unit>
+      <Item_price/>
+      <Valuation_method_code/>
+      <Value_item/>
+      <Attached_doc_item/>
+      <A.I._code/>
+    </Tarification>
+    <whs_write_of_unit>
+      <write_of_unit_cod/>
+      <write_of_unit_nam/>
+      <write_of_unit_qty/>
+    </whs_write_of_unit>
+    <Goods_description>
+      <Country_of_origin_code/>
+      <Country_of_origin_name/>
+      <Country_of_origin_region/>
+      <Container_1/>
+      <Container_2/>
+      <Container_3/>
+      <Container_4/>
+      <Harmonized_System_Code_Description/>
+      <Specification_Code_Description/>
+      <Description_of_goods/>
+    </Goods_description>
+    <Previous_doc>
+      <Summary_declaration/>
+      <Previous_document_reference/>
+      <Previous_warehouse_code/>
+    </Previous_doc>
+    <Licence_number/>
+    <Amount_deducted_from_licence/>
+    <Quantity_deducted_from_licence/>
+    <Free_text_2/>
+    <Output_Product_Model/>
+    <Taxation>
+      <Item_taxes_amount/>
+      <Item_taxes_mode_of_payment/>
+      <Taxation_line>
+        <Duty_tax_code/>
+        <Duty_tax_Base/>
+        <Duty_tax_rate/>
+        <Duty_tax_amount>0</Duty_tax_amount>
+        <Duty_tax_MP/>
+        <Duty_tax_Type_of_calculation/>
+      </Taxation_line>
+      <Taxation_line>
+        <Duty_tax_code/>
+        <Duty_tax_Base/>
+        <Duty_tax_rate/>
+        <Duty_tax_amount>0</Duty_tax_amount>
+        <Duty_tax_MP/>
+        <Duty_tax_Type_of_calculation/>
+      </Taxation_line>
+      <Taxation_line>
+        <Duty_tax_code/>
+        <Duty_tax_Base/>
+        <Duty_tax_rate/>
+        <Duty_tax_amount>0</Duty_tax_amount>
+        <Duty_tax_MP/>
+        <Duty_tax_Type_of_calculation/>
+      </Taxation_line>
+      <Taxation_line>
+        <Duty_tax_code/>
+        <Duty_tax_Base/>
+        <Duty_tax_rate/>
+        <Duty_tax_amount>0</Duty_tax_amount>
+        <Duty_tax_MP/>
+        <Duty_tax_Type_of_calculation/>
+      </Taxation_line>
+      <Taxation_line>
+        <Duty_tax_code/>
+        <Duty_tax_Base/>
+        <Duty_tax_rate/>
+        <Duty_tax_amount>0</Duty_tax_amount>
+        <Duty_tax_MP/>
+        <Duty_tax_Type_of_calculation/>
+      </Taxation_line>
+      <Taxation_line>
+        <Duty_tax_code/>
+        <Duty_tax_Base/>
+        <Duty_tax_rate/>
+        <Duty_tax_amount>0</Duty_tax_amount>
+        <Duty_tax_MP/>
+        <Duty_tax_Type_of_calculation/>
+      </Taxation_line>
+      <Taxation_line>
+        <Duty_tax_code/>
+        <Duty_tax_Base/>
+        <Duty_tax_rate/>
+        <Duty_tax_amount>0</Duty_tax_amount>
+        <Duty_tax_MP/>
+        <Duty_tax_Type_of_calculation/>
+      </Taxation_line>
+      <Taxation_line>
+        <Duty_tax_code/>
+        <Duty_tax_Base/>
+        <Duty_tax_rate/>
+        <Duty_tax_amount>0</Duty_tax_amount>
+        <Duty_tax_MP/>
+        <Duty_tax_Type_of_calculation/>
+      </Taxation_line>
+    </Taxation>
+    <Valuation_item>
+      <Weight_itm>
+        <Gross_weight_itm/>
+        <Net_weight_itm/>
+      </Weight_itm>
+      <Rate_of_adjustement>1</Rate_of_adjustement>
+      <Total_cost_itm/>
+      <Total_CIF_itm/>
+      <Statistical_value/>
+      <Item_Invoice>
+        <Amount_foreign_currency/>
+        <Currency_code/>
+        <Amount_national_currency/>
+        <Currency_name/>
+        <Currency_rate/>
+      </Item_Invoice>
+      <item_external_freight>
+        <Amount_foreign_currency/>
+        <Currency_code/>
+        <Amount_national_currency/>
+        <Currency_name/>
+        <Currency_rate/>
+      </item_external_freight>
+      <item_internal_freight>
+        <Amount_foreign_currency/>
+        <Currency_code/>
+        <Amount_national_currency/>
+        <Currency_name/>
+        <Currency_rate/>
+      </item_internal_freight>
+      <item_insurance>
+        <Amount_foreign_currency/>
+        <Currency_code/>
+        <Amount_national_currency/>
+        <Currency_name/>
+        <Currency_rate/>
+      </item_insurance>
+      <item_other_cost>
+        <Amount_foreign_currency/>
+        <Currency_code/>
+        <Amount_national_currency/>
+        <Currency_name/>
+        <Currency_rate/>
+      </item_other_cost>
+      <item_deduction>
+        <Amount_foreign_currency/>
+        <Currency_code/>
+        <Amount_national_currency/>
+        <Currency_name/>
+        <Currency_rate/>
+      </item_deduction>
+      <Market_valuer>
+        <Rate/>
+        <Currency_code/>
+        <Currency_amount/>
+        <Basis_description/>
+        <Basis_amount/>
+      </Market_valuer>
+    </Valuation_item>
+  </Item>
+</TWM_SAD></script>
+<script>
+(() => {
+"use strict";
+/* =====================================================================
+   Accuracy rules this app follows
+   1. Every value written to the XML comes from exactly one of: a cell in the
+      Excel file, the official tariff (customs.erca.gov.et), the XML the person
+      uploaded, a calculation shown to the person, or a decision the person made.
+      Each value carries that source into the audit report.
+   2. Nothing is guessed. When the Excel file is unclear, the person decides.
+   3. Before download the file is re-read and checked against the Excel lines;
+      any failed check blocks the download.
+   ===================================================================== */
+
+const T = window.TARIFF || null;
+const S = {
+  step: 1, pl: null, mode: null, xml: null,
+  plView: "doc", xmlView: "easy", outView: "easy",
+  colsConfirmed: false,
+  res: {},             // issue id -> resolution {value?, ok:true}
+  decl: {origin:"", pkgType:"", regime:"", addl:"", confirmed:false},
+  hdr: {office:"", officeName:"", declarantCode:"", declarantName:"", refYear:String(new Date().getFullYear()), refNo:"", exporter:"", consigneeCode:"", consignee:"", rate:"", freight:"", insurance:"", other:""},
+  match: {},           // xml item rank -> [line nos] confirmed as already declared
+  matchAck: {},        // xml item rank -> "none" when the person says no lines correspond
+  code: {},            // subheading(6) -> chosen 8-digit national code (for new lines)
+  lineCode: {},        // line no -> national code override
+  excluded: {},        // line no -> reason
+  itemEdit: {},        // code -> {desc, addl, suppQty:[...], pkgs, licence, docs, prevDoc, freeText}
+  pkgAck: false, dupAck: {},
+  fixCode: {},         // xml item rank -> corrected code (only for codes missing from the tariff)
+  open: null, lookup: null, signName: "", signOk: false,
+};
+
+/* ---------------- small helpers ---------------- */
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const plural = (k, w, p) => `${k} ${k === 1 ? w : (p || w + "s")}`;
+const hsFmt = c => c ? `${c.slice(0,4)}.${c.slice(4,6)}.${c.slice(6,8)}` : "";
+const money = c => (c/100).toLocaleString("en-US", {minimumFractionDigits:2, maximumFractionDigits:2});    // cents -> text
+const kg = g => (g/1000).toLocaleString("en-US", {maximumFractionDigits:3});                               // grams -> text
+const kgX = g => { const s = (g/1000).toFixed(3); return s.endsWith("0") ? s.slice(0, -1) : s; }; // grams -> "1038.00" / "0.005": exact, at least 2 decimals
+const f0 = x => Math.round(+x || 0).toLocaleString("en-US");
+function toast(m){ const t = $("toast"); t.textContent = m; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 3200); }
+const colName = c => XLSX.utils.encode_col(c);
+const cellRef = (r, c) => XLSX.utils.encode_cell({r, c});
+
+/* integer maths only: money in cents, weight in grams */
+function scaled(x, f){ const v = Math.round(x * f); return Math.abs(x * f - v) < 1e-6 ? v : null; }
+// Split an integer total over weights so the parts add up to exactly the total (largest remainder).
+function allocate(total, weights){
+  const W = weights.reduce((s, w) => s + w, 0);
+  const w = W > 0 ? weights : weights.map(() => 1), WW = W > 0 ? W : weights.length;
+  const raw = w.map(x => total * x / WW), base = raw.map(Math.floor);
+  let left = total - base.reduce((s, x) => s + x, 0);
+  raw.map((x, i) => [x - base[i], i]).sort((a, b) => b[0] - a[0] || a[1] - b[1]).forEach(([, i]) => { if (left > 0) { base[i]++; left--; } });
+  return base;
+}
+
+/* XML helpers: walk by tag name (tags like "A.I._code" break CSS selectors) */
+function child(el, tag){ if (!el) return null; for (const c of el.children) if (c.tagName === tag) return c; return null; }
+function at(el, path){ return path.split("/").reduce((e, t) => child(e, t), el); }
+function tx(el, path){ const e = at(el, path); return e ? (e.textContent || "").trim() : ""; }
+function setTx(el, path, v){
+  let cur = el;
+  for (const t of path.split("/")) { let c = child(cur, t); if (!c) { c = cur.ownerDocument.createElement(t); cur.appendChild(c); } cur = c; }
+  cur.textContent = v == null ? "" : String(v);
+}
+function kids(el, tag){ return [...(el?.children || [])].filter(e => e.tagName === tag); }
+
+/* ---------------- official tariff ---------------- */
+const TAR = (() => {
+  if (!T) return null;
+  const by8 = new Map(), by6 = new Map(), byHead = new Map();
+  for (const l of T.lines) {
+    by8.set(l.c, l);
+    const s6 = l.c.slice(0,6), h4 = l.c.slice(0,4);
+    if (!by6.has(s6)) by6.set(s6, []); by6.get(s6).push(l);
+    if (!byHead.has(h4)) byHead.set(h4, []); byHead.get(h4).push(l);
+  }
+  const list = k => new Map((T.lists?.[k] || []).map(x => [x.code, x.name]));
+  return {by8, by6, byHead, units:list("unitOfMeasurment"), pkgs:list("typeOfPackage"), regimes:list("customsRegime"), addl:list("additionalCode"), countries:list("country")};
+})();
+const tline = c => TAR?.by8.get(c) || null;
+const unitsOf = c => (tline(c)?.u || "").split(/[\s,/]+/).filter(Boolean);
+const rateTxt = l => l ? `duty ${l.r.DR ?? "?"}% · VAT ${l.r.VAT ?? "?"}%${l.r.ER && l.r.ER !== "0" ? ` · excise ${l.r.ER}%` : ""}` : "";
+
+/* ---------------- reading the Excel packing list ---------------- */
+const FIELDS_PL = [
+  ["no", "Line number", /^\s*(序号|No\.?)\s*/i, 1], ["ctn", "Carton number", /Ctn|箱号/i, 0], ["pkgs", "Number of packages", /PKGS|箱数/i, 1],
+  ["desc", "Description", /Descr|品名/i, 1], ["hs", "HS code", /HS\s*CODE/i, 1], ["amount", "Amount (USD)", /AMOUNT|金额/i, 1],
+  ["unit", "Unit", /单位|\bUnit\b(?!.*(N\.?\s*W|G\.?\s*W))/i, 0], ["qty", "Quantity", /Qty|数量/i, 1],
+  ["nwUnit", "Net weight per unit", /单件净重|(?<!Total\s*)N\.?\s*W/i, 0], ["net", "Total net weight", /Total\s*N\.?\s*W|总净重/i, 1],
+  ["gross", "Total gross weight", /G\.?\s*W|毛重/i, 1],
+];
+function readSheet(buf){
+  const wb = XLSX.read(buf, {type:"array", cellNF:true});
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const R = XLSX.utils.decode_range(ws["!ref"]);
+  let hdr = -1;
+  for (let r = R.s.r; r <= Math.min(R.e.r, R.s.r + 25) && hdr < 0; r++)
+    for (let c = R.s.c; c <= R.e.c; c++) { const x = ws[cellRef(r,c)]; if (x && /HS\s*CODE/i.test(String(x.v))) { hdr = r; break; } }
+  if (hdr < 0) throw new Error("This Excel file has no “HS CODE” column heading in its first sheet. Is it a packing list?");
+  const heads = [];
+  for (let c = R.s.c; c <= R.e.c; c++) { const x = ws[cellRef(hdr,c)]; heads.push({c, text: x ? String(x.v).replace(/\s+/g, " ").trim() : ""}); }
+  const cols = {};
+  // most specific first so "Total N.W." isn't taken as "N.W. per unit"
+  for (const k of ["hs","net","gross","nwUnit","ctn","pkgs","desc","amount","qty","unit","no"]) {
+    const def = FIELDS_PL.find(f => f[0] === k);
+    const h = heads.find(h => h.text && def[2].test(h.text) && !Object.values(cols).includes(h.c));
+    if (h) cols[k] = h.c;
+  }
+  return {wb, ws, R, hdr, heads, cols, sheetName: wb.SheetNames[0], sheetHtml: XLSX.utils.sheet_to_html(ws, {header:"", footer:""})};
+}
+function num(cell){
+  // returns {v, kind}: kind "num" | "empty" | "textnum" (plain digits typed as text) | "comma" (decimal comma) | "bad"
+  if (!cell || cell.v === "" || cell.v == null) return {v:null, kind:"empty"};
+  if (typeof cell.v === "number") return {v:cell.v, kind:"num"};
+  const s = String(cell.v).trim();
+  if (s === "") return {v:null, kind:"empty"};
+  if (/^-?\d+(\.\d+)?$/.test(s)) return {v:+s, kind:"textnum", raw:s};
+  if (/^-?\d+,\d+$/.test(s)) return {v:+s.replace(",", "."), kind:"comma", raw:s};
+  return {v:null, kind:"bad", raw:s};
+}
+function mergeOf(ws, r, c){ for (const m of ws["!merges"] || []) if (r >= m.s.r && r <= m.e.r && c >= m.s.c && c <= m.e.c) return m; return null; }
+function parsePL(sheet){
+  const {ws, R, hdr, cols} = sheet;
+  const get = (r, k) => cols[k] == null ? null : ws[cellRef(r, cols[k])];
+  const lines = [], ignored = [], issues = [];
+  let totalRow = null;
+  for (let r = hdr + 1; r <= R.e.r; r++) {
+    const noCell = get(r, "no"), noV = noCell?.v;
+    const rowText = []; for (let c = R.s.c; c <= R.e.c; c++) { const x = ws[cellRef(r,c)]; if (x && x.v !== "" && x.v != null) rowText.push(String(x.v)); }
+    if (!rowText.length) continue;
+    if (typeof noV !== "number") {
+      if (/total|合计|总计/i.test(String(noV ?? rowText[0]))) { totalRow = r; break; }
+      ignored.push({r, text: rowText.join(" | ").slice(0, 160)});
+      continue;
+    }
+    const L = {no: noV, r, cells:{}, ctn: String(get(r, "ctn")?.v ?? (cols.ctn != null && mergeOf(ws, r, cols.ctn) ? ws[cellRef(mergeOf(ws, r, cols.ctn).s.r, cols.ctn)]?.v ?? "" : "")).trim()};
+    for (const k of Object.keys(cols)) L.cells[k] = cellRef(r, cols[k]);
+    // description: keep the English part exactly as written
+    const raw = String(get(r, "desc")?.v ?? "");
+    L.descRaw = raw;
+    const cjk = /[　-鿿＀-￯]/;
+    let en = raw;
+    if (raw.includes("\n") && cjk.test(raw.split("\n")[0])) en = raw.slice(raw.indexOf("\n") + 1);
+    else { const m = raw.match(/[　-鿿＀-￯]([^　-鿿＀-￯]*)$/); if (m && m[1].trim()) en = m[1]; }
+    L.en = en.replace(/\s+/g, " ").trim();
+    L.name = L.en.split(/[,;]/)[0].trim();
+    if (!L.en) issues.push({id:`desc:${L.no}`, sev:"block", line:L.no, cell:L.cells.desc, kind:"text", msg:`Line ${L.no} has no English description.`, ask:"Type the description"});
+    // HS code
+    const hc = get(r, "hs");
+    if (hc && hc.t === "n" && hc.v < 3e6 && ((hc.z && XLSX.SSF.is_date(hc.z)) || (hc.v >= 1e6 && Number.isInteger(hc.v)))) {
+      const d = new Date(Date.UTC(1899, 11, 30) + Math.round(hc.v) * 864e5);
+      L.hs = `${d.getUTCFullYear()}${String(d.getUTCMonth()+1).padStart(2,"0")}${String(d.getUTCDate()).padStart(2,"0")}`;
+      issues.push({id:`hsdate:${L.no}`, sev:"block", line:L.no, cell:L.cells.hs, kind:"confirm",
+        msg:`Excel stored the HS code of line ${L.no} (${esc(L.name)}) as a date: it shows ${esc(hc.w || "")}. Read as ${hsFmt(L.hs)}?`, yes:`Yes, it is ${hsFmt(L.hs)}`, ask:"Or type the code"});
+    } else if (hc && typeof hc.v === "number") L.hs = String(Math.round(hc.v));
+    else L.hs = hc ? String(hc.v).replace(/\D/g, "") : "";
+    if (L.hs.length < 6) issues.push({id:`hs:${L.no}`, sev:"block", line:L.no, cell:L.cells.hs, kind:"text", msg:`Line ${L.no} (${esc(L.name)}) has no usable HS code (“${esc(hc?.w ?? hc?.v ?? "")}”).`, ask:"Type the HS code"});
+    // numbers
+    const numField = (k, label, factor, required) => {
+      const c = get(r, k), p = num(c), ref = L.cells[k];
+      if (p.kind === "empty") { if (required) issues.push({id:`${k}:${L.no}`, sev:"block", line:L.no, cell:ref, kind:"number", msg:`${label} is empty for line ${L.no} (${esc(L.name)}).`, ask:`Type the ${label.toLowerCase()}`, zero: k === "amount" ? "It is included in another line's price (0)" : null}); return null; }
+      if (p.kind === "bad") { issues.push({id:`${k}:${L.no}`, sev:"block", line:L.no, cell:ref, kind:"number", msg:`${label} of line ${L.no} is “${esc(p.raw)}”, which is not a number.`, ask:`Type the ${label.toLowerCase()}`}); return null; }
+      if (p.kind === "comma") issues.push({id:`${k}:${L.no}`, sev:"block", line:L.no, cell:ref, kind:"confirm", msg:`${label} of line ${L.no} is written “${esc(p.raw)}” with a comma.`, yes:`Yes, it means ${p.v}`, ask:"Or type the number", val:p.v});
+      const s = scaled(p.v, factor);
+      if (s == null) issues.push({id:`dec:${k}:${L.no}`, sev:"block", line:L.no, cell:ref, kind:"number", msg:`${label} of line ${L.no} is ${p.v}, which has more decimals than the XML can hold.`, ask:`Type the exact ${label.toLowerCase()}`});
+      return s;
+    };
+    L.amount = numField("amount", "Price", 100, true);
+    L.qty = cols.qty != null ? num(get(r, "qty")).v : null;
+    if (L.qty != null && !Number.isInteger(L.qty)) issues.push({id:`qty:${L.no}`, sev:"warn", line:L.no, cell:L.cells.qty, kind:"ack", msg:`Quantity of line ${L.no} is ${L.qty}, not a whole number.`});
+    L.unit = String(get(r, "unit")?.v ?? "").trim().toUpperCase();
+    L.net = numField("net", "Total net weight", 1000, true);
+    L.nwUnit = cols.nwUnit != null ? num(get(r, "nwUnit")).v : null;
+    // gross weight and packages are written once per carton; merged cells tell which lines share them
+    const gm = cols.gross != null ? mergeOf(ws, r, cols.gross) : null;
+    L.gGroup = gm ? cellRef(gm.s.r, cols.gross) : cellRef(r, cols.gross);
+    L.gTop = !gm || gm.s.r === r;
+    L.grossTop = L.gTop ? numField("gross", "Gross weight", 1000, false) : null;
+    const pm = cols.pkgs != null ? mergeOf(ws, r, cols.pkgs) : null;
+    L.pTop = !pm || pm.s.r === r;
+    const pv = L.pTop ? num(get(r, "pkgs")) : {v:null, kind:"empty"};
+    L.pkgs = pv.v == null ? 0 : pv.v;
+    if (pv.kind === "bad" || (pv.v != null && !Number.isInteger(pv.v))) issues.push({id:`pkgs:${L.no}`, sev:"block", line:L.no, cell:L.cells.pkgs, kind:"number", msg:`Number of packages for line ${L.no} is “${esc(pv.raw ?? pv.v)}”.`, ask:"Type the number of packages"});
+    lines.push(L);
+  }
+  // lines whose gross cell is empty and not merged: the person says which carton they belong to
+  for (const L of lines) if (L.gTop && L.grossTop == null && !issues.some(i => i.id === `gross:${L.no}` || i.id === `dec:gross:${L.no}`)) {
+    const prev = lines[lines.indexOf(L) - 1], grp = lines.filter(x => x.gGroup === L.gGroup);
+    const who = grp.length > 1 ? `Lines ${grp[0].no}–${grp[grp.length-1].no} share one merged gross weight cell (${L.gGroup}), and it is empty.` : `Line ${L.no} (${esc(L.name)}) has no gross weight, and its cell isn't merged with a carton above.`;
+    issues.push({id:`gross:${L.no}`, sev:"block", line:L.no, cell:L.cells.gross, kind:"number", msg:who,
+      ask: grp.length > 1 ? "Type their gross weight together (kg)" : "Type its gross weight (kg)", joinPrev: prev ? prev.no : null});
+  }
+  // duplicate line numbers
+  const seen = new Set(); for (const L of lines) { if (seen.has(L.no)) issues.push({id:`dupno:${L.no}`, sev:"warn", line:L.no, kind:"ack", msg:`Line number ${L.no} appears twice in the Excel file. Both lines are used.`}); seen.add(L.no); }
+  // supplier's own arithmetic
+  const bad = lines.filter(L => L.qty != null && L.nwUnit != null && L.net != null && Math.abs(Math.round(L.qty * L.nwUnit * 1000) - L.net) > 1);
+  if (bad.length) issues.push({id:"nwmath", sev:"warn", kind:"ack", msg:`In ${plural(bad.length, "line")}, Qty × N.W. per unit is not equal to Total N.W. (lines ${bad.slice(0,12).map(L => L.no).join(", ")}${bad.length > 12 ? "…" : ""}). The app uses the Total N.W. column exactly as written.`});
+  if (ignored.length) issues.push({id:"ignored", sev:"warn", kind:"ack", msg:`${plural(ignored.length, "row")} between the heading and the Total row ${ignored.length===1?"has":"have"} no line number and ${ignored.length===1?"is":"are"} not used: ${ignored.slice(0,4).map(x => `row ${x.r+1} “${esc(x.text.slice(0,60))}”`).join("; ")}${ignored.length > 4 ? "…" : ""}`});
+  // header text
+  let top = "";
+  for (let r = R.s.r; r < hdr; r++) for (let c = R.s.c; c <= R.e.c; c++) { const x = ws[cellRef(r,c)]; if (x && x.v) top += String(x.v) + "\n"; }
+  const pick = re => { const m = top.match(re); return m ? m[1].trim() : ""; };
+  const meta = {seller: pick(/Seller\s*[：:]\s*(.+?)(?:\n|\s{3,})/i), consignee: pick(/Consignee\s*[：:]\s*(.+?)(?:\n|\s{3,})/i),
+    invoice: pick(/Invoice\s*No\.?\s*[：:]\s*(\S+)/i), date: pick(/Date\s*[：:]\s*([\d./-]+)/i)};
+  const totals = totalRow == null ? null : {row: totalRow,
+    qty: num(get(totalRow, "qty")).v, net: num(get(totalRow, "net")).v, gross: num(get(totalRow, "gross")).v, amount: num(get(totalRow, "amount")).v, pkgs: num(get(totalRow, "pkgs")).v};
+  return {lines, issues, ignored, meta, totals};
+}
+/* values after the person's decisions */
+function lineVal(L, k){
+  const id = {amount:`amount:${L.no}`, net:`net:${L.no}`, gross:`gross:${L.no}`}[k];
+  const res = id ? S.res[id] : null, dec = S.res[`dec:${k}:${L.no}`];
+  const f = k === "amount" ? 100 : 1000;
+  if (dec?.value != null) return scaled(dec.value, f);
+  if (res?.value != null) return scaled(res.value, f);
+  return {amount:L.amount, net:L.net, gross:L.grossTop}[k];
+}
+function lineHS(L){
+  const r = S.res[`hsdate:${L.no}`] || S.res[`hs:${L.no}`];
+  if (r?.value) return String(r.value).replace(/\D/g, "");
+  return L.hs;
+}
+function lineDesc(L){ return S.res[`desc:${L.no}`]?.value || L.en; }
+function lineName(L){ return (S.res[`desc:${L.no}`]?.value || L.name || "").trim(); }
+function openIssues(){ return S.pl ? S.pl.issues.filter(i => !S.res[i.id]) : []; }
+function totalsCheck(){
+  const P = S.pl; if (!P || !P.totals) return [];
+  const out = [], L = P.lines, sum = k => L.reduce((s, x) => s + (lineVal(x, k) ?? 0), 0);
+  const grossSum = weightGroups().reduce((s, g) => s + g.gross, 0);
+  const t = P.totals;
+  if (t.amount != null && scaled(t.amount, 100) !== sum("amount")) out.push(`Price: the Total row says ${money(scaled(t.amount,100))} but the lines add up to ${money(sum("amount"))} USD.`);
+  if (t.net != null && scaled(t.net, 1000) !== sum("net")) out.push(`Net weight: the Total row says ${kg(scaled(t.net,1000))} kg but the lines add up to ${kg(sum("net"))} kg.`);
+  if (t.gross != null && scaled(t.gross, 1000) !== grossSum) out.push(`Gross weight: the Total row says ${kg(scaled(t.gross,1000))} kg but the cartons add up to ${kg(grossSum)} kg.`);
+  const q = L.reduce((s, x) => s + (x.qty || 0), 0);
+  if (t.qty != null && Math.abs(t.qty - q) > 1e-9) out.push(`Quantity: the Total row says ${t.qty} but the lines add up to ${q}.`);
+  return out;
+}
+/* carton weight groups: one gross weight shared by the lines under a merged cell */
+function weightGroups(){
+  // A merged gross cell covers several lines. If its top line was answered "same carton as line N",
+  // the whole merged group joins N's carton.
+  const P = S.pl, topOf = new Map();
+  for (const L of P.lines) if (L.gTop) topOf.set(L.gGroup, L);
+  const keyOf = (L, depth = 0) => {
+    const top = topOf.get(L.gGroup) || L, j = S.res[`gross:${top.no}`];
+    if (j?.join != null && depth < 50) return keyOf(P.lines.find(x => x.no === j.join), depth + 1);
+    return top.gGroup;
+  };
+  const groups = new Map();
+  for (const L of P.lines) { const k = keyOf(L); if (!groups.has(k)) groups.set(k, {key:k, lines:[], gross:0, net:0}); groups.get(k).lines.push(L); }
+  for (const g of groups.values()) {
+    g.gross = g.lines.reduce((s, L) => s + ((L.gTop && S.res[`gross:${L.no}`]?.join == null) ? (lineVal(L, "gross") ?? 0) : 0), 0);
+    g.net = g.lines.reduce((s, L) => s + (lineVal(L, "net") ?? 0), 0);
+  }
+  return [...groups.values()];
+}
+// Cartons whose gross weight is below the net weight of their lines: the Excel file itself is wrong
+function groupIssues(){
+  if (!S.pl || openIssues().length) return [];
+  return weightGroups().filter(g => g.gross < g.net).map(g => ({g, msg:`Lines ${g.lines[0].no}–${g.lines[g.lines.length-1].no} share a gross weight of ${kg(g.gross)} kg (cell ${g.key}), but their net weights add up to ${kg(g.net)} kg. Gross can't be less than net.`}));
+}
+/* line gross after sharing a carton's weight by net weight, in grams; exact sum per carton */
+function lineGross(){
+  const out = new Map();
+  for (const g of weightGroups()) {
+    const w = g.lines.map(L => lineVal(L, "net") ?? 0);
+    // share in 10 g steps when the carton weight allows it, so shares keep 2 decimals
+    const partsG = g.gross % 10 === 0 ? allocate(g.gross / 10, w).map(x => x * 10) : allocate(g.gross, w);
+    g.lines.forEach((L, i) => out.set(L.no, {g: partsG[i], shared: g.lines.length > 1, group: g}));
+  }
+  return out;
+}
+
+/* ---------------- reading an eSAD XML ---------------- */
+function readHeader(root){
+  const V = at(root, "Valuation");
+  return {
+    office: tx(root,"Identification/Office_segment/Customs_clearance_office_code"), officeName: tx(root,"Identification/Office_segment/Customs_Clearance_office_name"),
+    exporter: tx(root,"Traders/Exporter/Exporter_name"), consignee: tx(root,"Traders/Consignee/Consignee_name"),
+    ref: `${tx(root,"Declarant/Reference/Year")} ${tx(root,"Declarant/Reference/Number")}`.trim(),
+    rate: +tx(V,"Gs_Invoice/Currency_rate") || 0, cur: tx(V,"Gs_Invoice/Currency_code") || "USD",
+    invC: scaled(+tx(V,"Gs_Invoice/Amount_foreign_currency") || 0, 100),
+    frFc: +tx(V,"Gs_external_freight/Amount_foreign_currency") || 0, frNat: +tx(V,"Gs_external_freight/Amount_national_currency") || 0,
+    insFc: +tx(V,"Gs_insurance/Amount_foreign_currency") || 0, insNat: +tx(V,"Gs_insurance/Amount_national_currency") || 0, insCur: tx(V,"Gs_insurance/Currency_code") || "ETB", insRate: +tx(V,"Gs_insurance/Currency_rate") || 1,
+    othFc: +tx(V,"Gs_other_cost/Amount_foreign_currency") || 0, othNat: +tx(V,"Gs_other_cost/Amount_national_currency") || 0,
+  };
+}
+function parseXML(text){
+  const doc = new DOMParser().parseFromString(text, "application/xml");
+  if (doc.getElementsByTagName("parsererror").length) throw new Error("This file is not a readable XML file.");
+  const root = doc.documentElement;
+  if (root.tagName !== "TWM_SAD") throw new Error("This XML is not an eSAD export from the customs portal (no <TWM_SAD>).");
+  const header = readHeader(root);
+  const items = kids(root, "Item").map((el, idx) => {
+    const su = kids(at(el,"Tarification"), "Supplementary_unit").map(s => ({code:tx(s,"Supplementary_unit_code"), qty:tx(s,"Supplementary_unit_quantity")})).filter(s => s.code);
+    return {idx, el, rank:+tx(el,"Rank"), hs:tx(el,"Tarification/HScode/Commodity_code"), prec:tx(el,"Tarification/HScode/Precision_1"),
+      desc:tx(el,"Goods_description/Description_of_goods").replace(/\s+/g," "),
+      pkgs:+tx(el,"Packages/Number_of_packages") || 0, gross:scaled(+tx(el,"Valuation_item/Weight_itm/Gross_weight_itm") || 0, 1000) ?? 0,
+      net:scaled(+tx(el,"Valuation_item/Weight_itm/Net_weight_itm") || 0, 1000) ?? 0,
+      usdC:scaled(+tx(el,"Valuation_item/Item_Invoice/Amount_foreign_currency") || 0, 100) ?? 0,
+      frNat:+tx(el,"Valuation_item/item_external_freight/Amount_national_currency") || 0, supp:su,
+      origin:tx(el,"Goods_description/Country_of_origin_code"), ext:tx(el,"Tarification/Extended_customs_procedure"), addl:tx(el,"Tarification/National_customs_procedure"),
+      pkgCode:tx(el,"Packages/Kind_of_packages_code"), empty:!tx(el,"Tarification/HScode/Commodity_code")};
+  });
+  const filled = items.filter(i => !i.empty);
+  for (const it of filled) {
+    const hr = header.invC ? header.frNat / (header.invC / 100 * header.rate) : 0, ir = it.usdC ? it.frNat / (it.usdC / 100 * header.rate) : 0;
+    it.anomaly = hr > 0 && it.usdC > 0 && (ir > hr * 3 || ir < hr / 3) ? Math.round(ir / hr) : 0;
+  }
+  // exact text of each existing item, to prove later that it wasn't changed
+  const itemTexts = text.match(/<Item>[\s\S]*?<\/Item>/g) || [];
+  return {text, header, items, filled, itemTexts};
+}
+function majority(vals){ const m = new Map(); for (const v of vals) if (v) m.set(v, (m.get(v) || 0) + 1); return [...m.entries()].sort((a,b) => b[1] - a[1]); }
+
+/* ---------------- matching Excel lines to items already in the XML ---------------- */
+function declaredLines(){ const s = new Map(); for (const [rank, nos] of Object.entries(S.match)) for (const no of nos) s.set(no, +rank); return s; }
+function matchProposals(){
+  if (S.mode !== "existing" || !S.xml || !S.pl) return [];
+  const taken = declaredLines(), out = [];
+  for (const it of S.xml.filled) {
+    if (S.match[it.rank] || S.matchAck[it.rank]) continue;
+    const free = S.pl.lines.filter(L => !taken.has(L.no) && !S.excluded[L.no]);
+    const same6 = free.filter(L => lineHS(L).slice(0,6) === it.hs.slice(0,6));
+    const sum = ls => ls.reduce((s, L) => s + (lineVal(L, "amount") ?? 0), 0);
+    let prop = null, why = "";
+    if (same6.length && sum(same6) === it.usdC) { prop = same6; why = "same HS subheading and exactly the same value"; }
+    else if (same6.length && sum(same6) < it.usdC) {
+      const extra = subsetFor(it.usdC - sum(same6), free.filter(L => !same6.includes(L)), it.desc);
+      if (extra) { prop = [...same6, ...extra]; why = `same HS subheading, plus ${plural(extra.length, "related line")} that make up the remaining ${money(it.usdC - sum(same6))} USD`; }
+    }
+    else if (same6.length && sum(same6) > it.usdC) {
+      const part = exactSubset(it.usdC, same6);
+      if (part) { prop = part; why = `${plural(part.length, "line")} with the same HS subheading that add up to exactly the same value (other lines with this subheading stay new)`; }
+    }
+    if (!prop) {
+      // exact value, similar name
+      const flat = s => s.toUpperCase().replace(/[^A-Z]/g, "");
+      const byVal = free.filter(L => lineVal(L, "amount") === it.usdC && flat(lineName(L)).length > 3 && (flat(it.desc).includes(flat(lineName(L))) || flat(lineName(L)).includes(flat(it.desc))));
+      if (byVal.length === 1) { prop = byVal; why = "same name and exactly the same value (different HS code)"; }
+    }
+    out.push({it, prop, why, same6, sum: prop ? sum(prop) : 0});
+  }
+  return out;
+}
+function subsetFor(target, pool, desc){
+  // Only clearly related lines: those naming the item's most specific word (its longest word),
+  // plus the other lines packed in the same cartons. A wider search finds coincidences.
+  if (target <= 0 || target > 5e5) return null;
+  const words = desc.toUpperCase().split(/[^A-Z]+/).filter(w => w.length >= 6 && !["ACCESSORIES","MACHINE","MACHINES","OTHERS"].includes(w)).sort((a,b) => b.length - a.length);
+  if (!words.length) return null;
+  const key = new RegExp(`\\b${words[0]}\\b`, "i");
+  const hit = pool.filter(L => key.test(lineDesc(L)));
+  const box = L => L.ctn ? "c:" + L.ctn : "g:" + L.gGroup;   // carton number, or the merged weight cell
+  const ctns = new Set(hit.map(box));
+  return exactSubset(target, pool.filter(L => hit.includes(L) || ctns.has(box(L))));
+}
+// fewest lines whose prices add up to exactly target cents, or null. Only a suggestion: the person confirms it.
+function exactSubset(target, pool){
+  if (target <= 0 || target > 5e5) return null;
+  const cand = pool.filter(L => (lineVal(L, "amount") ?? 0) > 0 && lineVal(L, "amount") <= target);
+  const best = new Int16Array(target + 1).fill(32767), from = new Array(target + 1); best[0] = 0;
+  cand.forEach((L, i) => { const c = lineVal(L, "amount"); for (let s = target; s >= c; s--) if (best[s - c] + 1 < best[s]) { best[s] = best[s - c] + 1; from[s] = [i, s - c]; } });
+  if (best[target] > 8) return null;
+  const pick = []; let s = target;
+  while (s > 0 && from[s]) { pick.push(cand[from[s][0]]); s = from[s][1]; }
+  return s === 0 && new Set(pick).size === pick.length ? pick.sort((a,b) => a.no - b.no) : null;
+}
+
+/* ---------------- national code for each new line ---------------- */
+function codeOptions(L){ return TAR ? (TAR.by6.get(lineHS(L).slice(0,6)) || []) : []; }
+function chosenCode(L){
+  if (S.lineCode[L.no]) return {code:S.lineCode[L.no], src:"chosen by you for this line"};
+  const s6 = lineHS(L).slice(0,6), opts = codeOptions(L);
+  if (S.code[s6]) return {code:S.code[s6], src:`chosen by you for subheading ${s6.slice(0,4)}.${s6.slice(4)}`};
+  if (opts.length === 1) return {code:opts[0].c, src:`the only Ethiopian tariff line under ${s6.slice(0,4)}.${s6.slice(4)}`};
+  return {code:null, src:""};
+}
+function newLines(){ const d = declaredLines(); return S.pl.lines.filter(L => !d.has(L.no) && !S.excluded[L.no]); }
+function codeQuestions(){
+  const m = new Map();
+  for (const L of newLines()) {
+    if (S.lineCode[L.no]) continue;
+    const s6 = lineHS(L).slice(0,6);
+    if (!m.has(s6)) m.set(s6, {s6, lines:[], opts:codeOptions(L)});
+    m.get(s6).lines.push(L);
+  }
+  return [...m.values()].filter(q => q.opts.length !== 1 || S.code[q.s6]).sort((a,b) => a.s6.localeCompare(b.s6));
+}
+
+/* ---------------- building the new items ---------------- */
+const COUNT_UNITS = {UNT:["PCS","PC","PIECE","PIECES","UNIT","UNITS","NOS","EA","EACH"], NPR:["PAIR","PAIRS","PR","PRS"]};
+function buildItems(){
+  const lg = lineGross(), m = new Map();
+  for (const L of newLines()) {
+    const c = chosenCode(L); if (!c.code) continue;
+    if (!m.has(c.code)) m.set(c.code, {code:c.code, lines:[], codeSrc:new Set()});
+    const it = m.get(c.code); it.lines.push(L); it.codeSrc.add(c.src);
+  }
+  const items = [...m.values()].sort((a,b) => a.code.localeCompare(b.code));
+  for (const it of items) {
+    const E = S.itemEdit[it.code] || {}, t = tline(it.code);
+    it.t = t;
+    it.usd = it.lines.reduce((s, L) => s + lineVal(L, "amount"), 0);
+    it.net = it.lines.reduce((s, L) => s + lineVal(L, "net"), 0);
+    it.gross = it.lines.reduce((s, L) => s + lg.get(L.no).g, 0);
+    it.grossShared = it.lines.some(L => lg.get(L.no).shared && lg.get(L.no).group.lines.some(x => chosenCode(x).code !== it.code || declaredLines().has(x.no)));
+    it.pkgsExcel = it.lines.reduce((s, L) => s + L.pkgs, 0);
+    const names = []; for (const L of it.lines) { const nm = lineName(L); if (nm && !names.includes(nm)) names.push(nm); }
+    it.descAuto = names.join(", ");
+    it.desc = E.desc ?? it.descAuto;
+    it.descSrc = E.desc != null ? "typed by you" : `Excel product names (text before the first comma) of lines ${it.lines.map(L => L.no).join(", ")}`;
+    it.addl = E.addl || S.decl.addl;
+    it.addlSrc = E.addl ? "chosen by you for this item" : "chosen by you for the whole declaration";
+    it.units = unitsOf(it.code).map((u, i) => {
+      const plUnits = [...new Set(it.lines.map(L => L.unit || "(blank)"))];
+      const typed = E.suppQty?.[i];
+      let qty = null, src = "", auto = false;
+      if (typed != null && typed !== "") { qty = typed; src = "typed by you"; }
+      else if (u === "KGM") { qty = String(it.net / 1000); src = "net weight from Excel"; auto = true; }
+      else if (COUNT_UNITS[u] && plUnits.every(p => COUNT_UNITS[u].includes(p)) && it.lines.every(L => Number.isInteger(L.qty))) {
+        qty = String(it.lines.reduce((s, L) => s + L.qty, 0)); src = `sum of Qty in Excel (${plUnits.join(", ")})`; auto = true;
+      }
+      return {code:u, name:TAR.units.get(u) || "", qty, src, auto, plUnits};
+    });
+    it.extra = {licence:E.licence || "", docs:E.docs || "", prevDoc:E.prevDoc || "", freeText:E.freeText || ""};
+    it.problems = [];
+    if (!t) it.problems.push(`HS code ${hsFmt(it.code)} is not in the official tariff.`);
+    if (!it.desc.trim()) it.problems.push("The description is empty.");
+    if (it.desc.length > 250) it.problems.push(`The description is ${it.desc.length} characters. Shorten it to 250 or fewer (the longest one the portal accepted in your declarations).`);
+    if (!it.addl) it.problems.push("No national procedure code is chosen.");
+    for (const u of it.units) if (u.qty == null || u.qty === "" || !(+u.qty > 0)) it.problems.push(`Enter the quantity in ${u.name || u.code} (the tariff requires it; Excel says ${u.plUnits.join(", ")}).`);
+    if (it.gross < it.net) it.problems.push(`Gross weight (${kg(it.gross)} kg) is less than net weight (${kg(it.net)} kg).`);
+  }
+  // packages: each item needs at least 1, and the total must stay equal to the cartons in the Excel lines
+  const total = items.reduce((s, it) => s + it.pkgsExcel, 0);
+  for (const it of items) it.pkgs = it.pkgsExcel;
+  const moves = [];
+  if (!items.some(it => S.itemEdit[it.code]?.pkgs != null)) {
+    for (const it of items.filter(x => x.pkgs === 0)) {
+      const donor = items.filter(x => x.pkgs > 1).sort((a,b) => b.pkgs - a.pkgs || a.code.localeCompare(b.code))[0];
+      if (!donor) break;
+      donor.pkgs--; it.pkgs++; moves.push({from:donor, to:it});
+    }
+  } else for (const it of items) if (S.itemEdit[it.code]?.pkgs != null) it.pkgs = +S.itemEdit[it.code].pkgs;
+  for (const it of items) {
+    it.pkgsSrc = S.itemEdit[it.code]?.pkgs != null ? "typed by you" : moves.some(m => m.to === it || m.from === it) ? "Excel cartons, adjusted so every item has at least 1 (see step 3)" : `Excel packages column, lines ${it.lines.filter(L => L.pkgs).map(L => L.no).join(", ") || "none"}`;
+    if (!(it.pkgs >= 1)) it.problems.push("Every item needs at least 1 package.");
+    if (moves.some(m => m.to === it || m.from === it) && !S.pkgAck) it.problems.push("Agree to the package counts in step 3 (a package was moved to give every item at least 1).");
+    if (S.mode === "existing" && S.xml.filled.some(i => (S.fixCode[i.rank] || i.hs) === it.code) && !S.dupAck[it.code]) it.problems.push(`Confirm in step 3 that this should be a second item with code ${hsFmt(it.code)}.`);
+  }
+  const pkNow = items.reduce((s, it) => s + it.pkgs, 0);
+  if (pkNow !== total) for (const it of items) it.problems.push(`Packages add up to ${pkNow}, but the Excel lines have ${total}.`);
+  return {items, moves, pkgTotal: total};
+}
+
+/* ---------------- costs ---------------- */
+function costs(items){
+  const rate = S.mode === "existing" ? S.xml.header.rate : +S.hdr.rate;
+  if (S.mode === "existing") {
+    const H = S.xml.header;
+    return items.map(it => { const sh = H.invC ? it.usd / H.invC : 0;
+      return {fr:Math.round(H.frNat * sh), ins:Math.round(H.insNat * sh), oth:Math.round(H.othNat * sh), frFc:Math.round(H.frFc * sh * 100), insFc:Math.round(H.insFc * sh * 100), othFc:Math.round(H.othFc * sh * 100), rate,
+        src:"header total × this item's share of the declared invoice total"}; });
+  }
+  const w = items.map(it => it.usd);
+  const frC = scaled(+S.hdr.freight || 0, 100) ?? 0, insC = scaled(+S.hdr.insurance || 0, 100) ?? 0, othC = scaled(+S.hdr.other || 0, 100) ?? 0;
+  const frNat = Math.round(frC / 100 * rate), othNat = Math.round(othC / 100 * rate), insNat = Math.round(insC / 100);
+  const A = [allocate(frNat, w), allocate(insNat, w), allocate(othNat, w), allocate(frC, w), allocate(insC, w), allocate(othC, w)];
+  return items.map((it, i) => ({fr:A[0][i], ins:A[1][i], oth:A[2][i], frFc:A[3][i], insFc:A[4][i], othFc:A[5][i], rate, src:"your totals shared by value (parts add up exactly)"}));
+}
+
+/* ---------------- XML output ---------------- */
+function blankItemFrom(doc){
+  const sk = new DOMParser().parseFromString($("skeleton").textContent.trim(), "application/xml");
+  return doc.importNode(child(sk.documentElement, "Item"), true);
+}
+function fieldsFor(it, c, rank){
+  const invNat = Math.round(it.usd / 100 * c.rate), cost = c.fr + c.ins + c.oth, cif = invNat + cost, z = x => x ? `${x}.0` : "0.00", nat = x => x ? `${x}.0` : "";
+  const H = S.mode === "existing" ? S.xml.header : {cur:"USD", insCur:"ETB", insRate:1};
+  const f = {
+    "Rank": String(rank),
+    "Packages/Number_of_packages": String(it.pkgs),
+    "Packages/Kind_of_packages_code": S.decl.pkgType, "Packages/Kind_of_packages_name": TAR.pkgs.get(S.decl.pkgType) || "",
+    "Tarification/HScode/Commodity_code": it.code, "Tarification/HScode/Precision_1": it.t.p, "Tarification/HScode/Precision_2": "0000", "Tarification/HScode/Precision_3": "0000",
+    "Tarification/Extended_customs_procedure": S.decl.regime, "Tarification/National_customs_procedure": it.addl,
+    "Tarification/Item_price": (it.usd / 100).toFixed(2),
+    "Tarification/Value_item": `${z(c.fr)} + 0.00 + ${z(c.ins)} + ${z(c.oth)} - 0.00`,
+    "Tarification/Attached_doc_item": it.extra.docs,
+    "Goods_description/Country_of_origin_code": S.decl.origin, "Goods_description/Country_of_origin_name": TAR.countries.get(S.decl.origin) || "",
+    "Goods_description/Harmonized_System_Code_Description": it.t.d, "Goods_description/Description_of_goods": it.desc,
+    "Previous_doc/Previous_document_reference": it.extra.prevDoc, "Licence_number": it.extra.licence, "Free_text_2": it.extra.freeText,
+    "Valuation_item/Weight_itm/Gross_weight_itm": kgX(it.gross), "Valuation_item/Weight_itm/Net_weight_itm": kgX(it.net),
+    "Valuation_item/Rate_of_adjustement": "1", "Valuation_item/Total_cost_itm": `${cost}.0`, "Valuation_item/Total_CIF_itm": `${cif}.0`, "Valuation_item/Statistical_value": String(cif),
+    "Valuation_item/Item_Invoice/Amount_foreign_currency": (it.usd / 100).toFixed(2), "Valuation_item/Item_Invoice/Currency_code": H.cur,
+    "Valuation_item/Item_Invoice/Amount_national_currency": `${invNat}.0`, "Valuation_item/Item_Invoice/Currency_rate": String(c.rate),
+  };
+  for (const [t, fc, na, cur, rt] of [["item_external_freight", c.frFc, c.fr, H.cur, c.rate], ["item_insurance", c.insFc, c.ins, H.insCur, H.insRate], ["item_other_cost", c.othFc, c.oth, H.cur, c.rate]]) {
+    f[`Valuation_item/${t}/Amount_foreign_currency`] = na ? (fc / 100).toFixed(2) : "";
+    f[`Valuation_item/${t}/Currency_code`] = na ? cur : "";
+    f[`Valuation_item/${t}/Amount_national_currency`] = nat(na);
+    f[`Valuation_item/${t}/Currency_rate`] = na ? String(rt) : "";
+  }
+  return f;
+}
+function setUnits(el, units){
+  const slots = kids(at(el, "Tarification"), "Supplementary_unit");
+  slots.forEach((s, i) => { const u = units[i];
+    setTx(s, "Supplementary_unit_code", u ? u.code : ""); setTx(s, "Supplementary_unit_name", u ? u.name : ""); setTx(s, "Supplementary_unit_quantity", u ? u.qty : ""); });
+}
+function build(){
+  const B = buildItems(), items = B.items, C = costs(items);
+  const text = S.mode === "existing" ? S.xml.text : '<?xml version="1.0" encoding="UTF-8"?>' + $("skeleton").textContent.trim();
+  const doc = new DOMParser().parseFromString(text, "application/xml"), root = doc.documentElement;
+  // the portal leaves an empty placeholder item at the end; drop it
+  for (const e of kids(root, "Item").filter(e => !tx(e, "Tarification/HScode/Commodity_code"))) { const p = e.previousSibling; if (p && p.nodeType === 3) p.remove(); e.remove(); }
+  // corrections the person made to existing items whose code isn't in the tariff
+  for (const [rank, code] of Object.entries(S.fixCode)) { const e = kids(root, "Item").find(x => tx(x, "Rank") === rank); if (e) { setTx(e, "Tarification/HScode/Commodity_code", code); setTx(e, "Tarification/HScode/Precision_1", tline(code).p); setTx(e, "Goods_description/Harmonized_System_Code_Description", tline(code).d); } }
+  let rank = kids(root, "Item").reduce((m, e) => Math.max(m, +tx(e, "Rank") || 0), 0);
+  let anchor = kids(root, "Item").slice(-1)[0] || at(root, "Valuation");
+  const out = [];
+  items.forEach((it, i) => {
+    const el = blankItemFrom(doc), f = fieldsFor(it, C[i], ++rank);
+    for (const [p, v] of Object.entries(f)) setTx(el, p, v);
+    setUnits(el, it.units);
+    anchor.after(doc.createTextNode("\n  "), el); anchor = el;
+    out.push({it, c:C[i], f, rank});
+  });
+  if (anchor.tagName === "Item" && anchor.nextSibling?.nodeType !== 3) anchor.after(doc.createTextNode("\n"));
+  const all = kids(root, "Item");
+  const sumPk = all.reduce((s, e) => s + (+tx(e, "Packages/Number_of_packages") || 0), 0);
+  const sumG = all.reduce((s, e) => s + (scaled(+tx(e, "Valuation_item/Weight_itm/Gross_weight_itm") || 0, 1000) ?? 0), 0);
+  setTx(root, "Property/Nbers/Total_number_of_items", all.length);
+  setTx(root, "Property/Nbers/Total_number_of_packages", sumPk);
+  setTx(root, "Valuation/Weight/Gross_weight", kgX(sumG));
+  setTx(root, "Valuation/Total/Total_weight", kgX(sumG));
+  if (S.mode === "new") {
+    const h = S.hdr, set = (p, v) => setTx(root, p, v), rate = +h.rate, inv = items.reduce((s, it) => s + it.usd, 0);
+    const frC = scaled(+h.freight || 0, 100) ?? 0, insC = scaled(+h.insurance || 0, 100) ?? 0, othC = scaled(+h.other || 0, 100) ?? 0;
+    const invNat = Math.round(inv / 100 * rate), frNat = Math.round(frC / 100 * rate), othNat = Math.round(othC / 100 * rate), insNat = Math.round(insC / 100), cost = frNat + insNat + othNat;
+    set("Identification/Office_segment/Customs_clearance_office_code", h.office); set("Identification/Office_segment/Customs_Clearance_office_name", h.officeName);
+    set("Identification/Type/Type_of_declaration", "IM"); set("Identification/Type/Declaration_gen_procedure_code", "4");
+    set("Traders/Exporter/Exporter_name", h.exporter); set("Traders/Consignee/Consignee_code", h.consigneeCode); set("Traders/Consignee/Consignee_name", h.consignee);
+    set("Declarant/Declarant_code", h.declarantCode); set("Declarant/Declarant_name", h.declarantName); set("Declarant/Reference/Year", h.refYear); set("Declarant/Reference/Number", h.refNo);
+    set("General_information/Country/Country_of_origin_name", TAR.countries.get(S.decl.origin) || "");
+    const V = "Valuation/";
+    for (const [t, fc, na, cur, rt] of [["Gs_Invoice", inv, invNat, "USD", rate], ["Gs_external_freight", frC, frNat, "USD", rate], ["Gs_insurance", insC, insNat, "ETB", 1], ["Gs_other_cost", othC, othNat, "USD", rate]]) {
+      set(V+t+"/Amount_foreign_currency", fc ? (fc/100).toFixed(2) : ""); set(V+t+"/Currency_code", fc ? cur : ""); set(V+t+"/Amount_national_currency", t === "Gs_Invoice" ? String(na) : `${na}.0`); set(V+t+"/Currency_rate", fc ? String(rt) : "");
+    }
+    set(V+"Total_cost", `${cost}.0`); set(V+"Total_CIF", String(invNat + cost)); set("General_information/Value_details", `${cost}.0`);
+  }
+  let xml = new XMLSerializer().serializeToString(doc);
+  if (!xml.startsWith("<?xml")) xml = '<?xml version="1.0" encoding="UTF-8"?>' + xml;
+  xml = xml.replace(/\n\s*\n<\/TWM_SAD>\s*$/, "\n</TWM_SAD>");
+  return {xml, out, B, total: all.length, sumPk, sumG};
+}
+
+/* ---------------- final checks (all must pass) ---------------- */
+function runChecks(R){
+  const P = S.pl, checks = [], add = (ok, title, detail) => checks.push({ok, title, detail});
+  const decl = declaredLines(), inNew = new Map(); for (const o of R.out) for (const L of o.it.lines) inNew.set(L.no, o.rank);
+  // 1 every Excel line accounted for exactly once
+  const lost = P.lines.filter(L => (decl.has(L.no) ? 1 : 0) + (inNew.has(L.no) ? 1 : 0) + (S.excluded[L.no] ? 1 : 0) !== 1);
+  add(!lost.length, `All ${P.lines.length} Excel lines are accounted for`, lost.length ? `Not placed, or placed twice: lines ${lost.map(L => L.no).join(", ")}` :
+    `${inNew.size} in new items · ${decl.size} already in the XML · ${Object.keys(S.excluded).length} left out with a reason`);
+  // 2 no open Excel problems
+  add(!openIssues().length, "Every problem in the Excel file has been answered", openIssues().map(i => i.msg.replace(/<[^>]+>/g, "")).slice(0, 3).join(" · "));
+  // 3 re-read the file and compare every new item with the Excel lines, recomputed from scratch
+  const doc = new DOMParser().parseFromString(R.xml, "application/xml");
+  const parseOk = !doc.getElementsByTagName("parsererror").length && doc.documentElement.tagName === "TWM_SAD";
+  add(parseOk, "The file is valid eSAD XML", parseOk ? "Read back without errors" : "The generated file could not be read back");
+  if (!parseOk) return checks;
+  const root = doc.documentElement, back = kids(root, "Item");
+  const mism = [];
+  for (const o of R.out) {
+    const el = back.find(e => tx(e, "Rank") === String(o.rank));
+    if (!el) { mism.push(`item ${o.rank} missing`); continue; }
+    for (const [p, v] of Object.entries(o.f)) if (tx(el, p) !== String(v).trim()) mism.push(`item ${o.rank} ${p.split("/").pop()}: file has “${tx(el, p)}”, expected “${v}”`);
+    const su = kids(at(el, "Tarification"), "Supplementary_unit").map(s => [tx(s, "Supplementary_unit_code"), tx(s, "Supplementary_unit_quantity")]).filter(x => x[0]);
+    if (JSON.stringify(su) !== JSON.stringify(o.it.units.map(u => [u.code, String(u.qty)]))) mism.push(`item ${o.rank} supplementary units differ`);
+    // independent recomputation straight from the Excel cells
+    const usd = o.it.lines.reduce((s, L) => s + lineVal(L, "amount"), 0), net = o.it.lines.reduce((s, L) => s + lineVal(L, "net"), 0);
+    if (scaled(+tx(el, "Tarification/Item_price"), 100) !== usd) mism.push(`item ${o.rank} price ≠ sum of its Excel lines`);
+    if (scaled(+tx(el, "Valuation_item/Item_Invoice/Amount_foreign_currency"), 100) !== usd) mism.push(`item ${o.rank} invoice amount ≠ sum of its Excel lines`);
+    if (scaled(+tx(el, "Valuation_item/Weight_itm/Net_weight_itm"), 1000) !== net) mism.push(`item ${o.rank} net weight ≠ sum of its Excel lines`);
+  }
+  add(!mism.length, "Every new item in the file matches its Excel lines, field by field", mism.length ? mism.slice(0, 4).join(" · ") : `${R.out.length} items, ${R.out.reduce((s, o) => s + Object.keys(o.f).length, 0)} fields read back and compared`);
+  // 4 totals across all new items equal the Excel lines they came from
+  const nl = R.out.flatMap(o => o.it.lines), lg = lineGross();
+  const tot = k => nl.reduce((s, L) => s + (k === "gross" ? lg.get(L.no).g : lineVal(L, k)), 0);
+  const fileSum = p => R.out.reduce((s, o) => s + (scaled(+tx(back.find(e => tx(e, "Rank") === String(o.rank)), p), p.includes("weight") || p.includes("Weight") ? 1000 : 100) ?? 0), 0);
+  const tv = fileSum("Tarification/Item_price") === tot("amount"), tn = fileSum("Valuation_item/Weight_itm/Net_weight_itm") === tot("net"), tg = fileSum("Valuation_item/Weight_itm/Gross_weight_itm") === tot("gross");
+  const pk = R.out.reduce((s, o) => s + o.it.pkgs, 0) === R.B.pkgTotal;
+  add(tv && tn && tg && pk, "Totals of the new items equal the totals of their Excel lines",
+    `Price ${money(tot("amount"))} USD · net ${kg(tot("net"))} kg · gross ${kg(tot("gross"))} kg · packages ${R.out.reduce((s, o) => s + o.it.pkgs, 0)} of ${R.B.pkgTotal}${tv && tn && tg && pk ? "" : " — MISMATCH"}`);
+  // 5 codes against the official lists
+  const badCodes = [];
+  for (const e of back) {
+    const c = tx(e, "Tarification/HScode/Commodity_code"), rank = tx(e, "Rank");
+    if (!tline(c)) badCodes.push(`item ${rank}: HS ${hsFmt(c)} not in tariff`);
+    else {
+      const want = unitsOf(c), have = kids(at(e, "Tarification"), "Supplementary_unit").map(s => tx(s, "Supplementary_unit_code")).filter(Boolean);
+      if (R.out.some(o => String(o.rank) === rank) && JSON.stringify(want) !== JSON.stringify(have)) badCodes.push(`item ${rank}: unit should be ${want.join(" ") || "none"}`);
+    }
+  }
+  add(!badCodes.length, "Every HS code is in the official Ethiopian tariff, with the units it requires", badCodes.length ? badCodes.slice(0, 5).join(" · ") : `${back.length} items checked against the tariff of ${T.fetched}`);
+  const lists = [];
+  for (const o of R.out) {
+    if (!TAR.addl.has(o.f["Tarification/National_customs_procedure"])) lists.push(`item ${o.rank}: national procedure ${o.f["Tarification/National_customs_procedure"]} unknown`);
+    if (!TAR.regimes.has(o.f["Tarification/Extended_customs_procedure"])) lists.push(`item ${o.rank}: procedure ${o.f["Tarification/Extended_customs_procedure"]} unknown`);
+    if (!TAR.countries.has(o.f["Goods_description/Country_of_origin_code"])) lists.push(`item ${o.rank}: country unknown`);
+    if (!TAR.pkgs.has(o.f["Packages/Kind_of_packages_code"])) lists.push(`item ${o.rank}: package type unknown`);
+  }
+  add(!lists.length, "Procedure codes, country and package type are in the official lists", lists.slice(0, 4).join(" · ") || "All found in the portal's codification lists");
+  // 6 existing items untouched
+  if (S.mode === "existing") {
+    const backTexts = R.xml.match(/<Item>[\s\S]*?<\/Item>/g) || [];
+    const changed = S.xml.filled.filter(it => !S.fixCode[it.rank] && !backTexts.includes(S.xml.itemTexts[it.idx]));
+    add(!changed.length, "Items that were already in your XML are unchanged, character for character", changed.length ? `Changed: items ${changed.map(i => i.rank).join(", ")}` :
+      `${S.xml.filled.length - Object.keys(S.fixCode).length} items identical${Object.keys(S.fixCode).length ? `; ${Object.keys(S.fixCode).length} corrected HS codes as you chose` : ""}`);
+  }
+  // 7 header totals
+  const hi = +tx(root, "Property/Nbers/Total_number_of_items") === back.length, hp = +tx(root, "Property/Nbers/Total_number_of_packages") === R.sumPk;
+  add(hi && hp, "The header totals match the items", `${back.length} items · ${R.sumPk} packages · ${kg(R.sumG)} kg`);
+  // 8 nothing left undecided on any new item
+  const prob = R.out.filter(o => o.it.problems.length);
+  add(!prob.length, "Every new item is complete", prob.length ? prob.slice(0, 3).map(o => `item ${o.rank}: ${o.it.problems[0]}`).join(" · ") : "No missing information");
+  return checks;
+}
+
+/* ---------------- audit report ---------------- */
+function auditCSV(R){
+  const q = v => `"${String(v ?? "").replace(/"/g, '""')}"`, rows = [];
+  const push = (...a) => rows.push(a.map(q).join(","));
+  push("eSAD Item Builder audit report"); push("Created", new Date().toISOString()); push("Checked and signed by", S.signName);
+  push("Excel file", S.pl.file, "sheet", S.pl.sheet.sheetName); push("XML", S.mode === "existing" ? S.xml.file : "new file");
+  push("Tariff", T.source, "fetched", T.fetched); push("");
+  push("Declaration-wide choices"); push("Country of origin", S.decl.origin, TAR.countries.get(S.decl.origin), "chosen by", S.signName);
+  push("Package type", S.decl.pkgType, TAR.pkgs.get(S.decl.pkgType)); push("Procedure", S.decl.regime, TAR.regimes.get(S.decl.regime)); push("National procedure (default)", S.decl.addl, TAR.addl.get(S.decl.addl)); push("");
+  push("Excel problems and answers");
+  for (const i of S.pl.issues) { const r = S.res[i.id]; push(i.cell || "", i.msg.replace(/<[^>]+>/g, ""), r?.value != null ? `answer: ${r.value}` : r?.join != null ? `same carton as line ${r.join}` : "acknowledged"); }
+  push("");
+  push("Item", "HS code", "Field", "Value in XML", "Source");
+  for (const o of R.out) {
+    const it = o.it, src = {
+      "Tarification/HScode/Commodity_code": [...it.codeSrc].join("; "), "Goods_description/Harmonized_System_Code_Description": "official tariff", "Tarification/HScode/Precision_1": "official tariff",
+      "Goods_description/Description_of_goods": it.descSrc, "Packages/Number_of_packages": it.pkgsSrc, "Packages/Kind_of_packages_code": "chosen by you", "Packages/Kind_of_packages_name": "official list",
+      "Tarification/National_customs_procedure": it.addlSrc, "Tarification/Extended_customs_procedure": "chosen by you", "Goods_description/Country_of_origin_code": "chosen by you", "Goods_description/Country_of_origin_name": "official list",
+      "Tarification/Item_price": `sum of Excel ${it.lines.map(L => L.cells.amount).join("+")}`, "Valuation_item/Item_Invoice/Amount_foreign_currency": `sum of Excel ${it.lines.map(L => L.cells.amount).join("+")}`,
+      "Valuation_item/Weight_itm/Net_weight_itm": `sum of Excel ${it.lines.map(L => L.cells.net).join("+")}`,
+      "Valuation_item/Weight_itm/Gross_weight_itm": it.grossShared ? "Excel carton gross weights, shared by net weight between the products in the same carton" : `Excel ${[...new Set(it.lines.map(L => L.gGroup))].join("+")}`,
+    };
+    for (const [p, v] of Object.entries(o.f)) push(o.rank, hsFmt(it.code), p, v, src[p] || (p.includes("freight") || p.includes("insurance") || p.includes("other_cost") || p.includes("Value_item") || p.includes("CIF") || p.includes("cost") || p.includes("Statistical") || p.includes("national") || p.includes("rate") ? `calculated: ${o.c.src}; rate ${o.c.rate}` : ""));
+    it.units.forEach((u, i) => push(o.rank, hsFmt(it.code), `Supplementary unit ${i+1}`, `${u.code} ${u.qty}`, `unit from official tariff; quantity ${u.src}`));
+  }
+  push(""); push("Excel line", "Excel row", "Description", "USD", "Net kg", "Gross kg (share)", "Packages", "Placed in");
+  const decl = declaredLines(), lg = lineGross(), inNew = new Map(); for (const o of R.out) for (const L of o.it.lines) inNew.set(L.no, o.rank);
+  for (const L of S.pl.lines) push(L.no, L.r + 1, lineDesc(L), money(lineVal(L, "amount") ?? 0), kg(lineVal(L, "net") ?? 0), kg(lg.get(L.no)?.g ?? 0), L.pkgs,
+    inNew.has(L.no) ? `new item ${inNew.get(L.no)}` : decl.has(L.no) ? `already in XML as item ${decl.get(L.no)}` : S.excluded[L.no] ? `left out: ${S.excluded[L.no]}` : "NOT PLACED");
+  return "﻿" + rows.join("\r\n");
+}
+function download(name, text, type){
+  const url = URL.createObjectURL(new Blob([text], {type}));
+  const a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+function outName(ext){ const b = S.mode === "existing" ? S.xml.file.replace(/\.xml$/i, "") + "-updated" : `esad-${(S.pl?.meta.invoice || "new").replace(/[^\w-]/g, "")}`; return b + ext; }
+
+/* ================= screens ================= */
+function hl(s){ return esc(s).replace(/&lt;(\/?)([\w.]+)(\/?)&gt;/g, '<span class="t">&lt;$1$2$3&gt;</span>'); }
+function seg(name, cur, opts){ return `<div class="seg" role="group">${opts.map(([k,l]) => `<button aria-pressed="${cur===k}" data-view="${name}:${k}">${l}</button>`).join("")}</div>`; }
+function dropZone(id, accept, title, sub, ext){ return `<label class="drop" id="dz-${id}"><span class="icon">${ext}</span><span class="big">${title}</span><span class="muted">${sub}</span><input type="file" id="f-${id}" accept="${accept}"></label>`; }
+function fileChip(id, accept, name, info, ext){ return `<div class="file"><span class="icon">${ext}</span><span class="grow"><b>${esc(name)}</b><br><span class="muted">${info}</span></span><label class="btn sm">Choose another file<input type="file" id="f-${id}" accept="${accept}"></label></div>`; }
+const STEP_NAMES = ["Excel file", "XML file", "Items", "Check and download"];
+function ready(s){
+  if (s === 1) return true;
+  if (s === 2) return !!S.pl && S.colsConfirmed && !openIssues().length && !groupIssues().length;
+  if (s === 3) return ready(2) && declReady();
+  if (s === 4) return ready(3);
+  return false;
+}
+function declReady(){
+  const d = S.decl;
+  if (!S.mode || !d.origin || !d.pkgType || !d.regime || !d.addl || !d.confirmed) return false;
+  if (S.mode === "existing") return !!S.xml;
+  return +S.hdr.rate > 0;
+}
+function why(s){
+  if (s === 2) return !S.pl ? "Upload the Excel file first." : !S.colsConfirmed ? "Confirm the columns first." : openIssues().length ? `Answer ${plural(openIssues().length, "question")} about the Excel file first.` : groupIssues().length ? "Fix the gross weights in the Excel file and upload it again." : "";
+  if (s === 3) return !S.mode ? "Choose where the products go." : S.mode === "existing" && !S.xml ? "Upload the XML file." : S.mode === "new" && !(+S.hdr.rate > 0) ? "Enter the exchange rate." : !declReady() ? "Choose and confirm the declaration details." : "";
+  return "";
+}
+function renderSteps(){
+  $("steps").innerHTML = STEP_NAMES.map((t, i) => { const s = i + 1, ok = ready(s), done = s < S.step && ok;
+    return `<li><button class="step ${done ? "done" : ""}" data-go="${s}" ${ok ? "" : "disabled"} ${S.step===s?'aria-current="step"':""}><span class="dot">${done ? "✓" : s}</span><span class="txt"><span class="t">${t}</span></span></button></li>`; }).join("");
+  $("tariff-tag").textContent = T ? `Official tariff: ${T.count.toLocaleString()} lines, ${T.fetched}` : "Tariff file missing";
+}
+function nav(back, next, label){
+  const ok = next ? ready(next) : true, w = next ? why(next) : "";
+  return `<div class="nav">${back ? `<button class="btn big" data-go="${back}">← Back</button>` : "<span></span>"}
+    ${next ? `<span style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">${!ok && w ? `<span class="why">${w}</span>` : ""}<button class="btn big primary" data-go="${next}" ${ok ? "" : "disabled"}>${label} →</button></span>` : ""}</div>`;
+}
+
+/* ---- step 1 ---- */
+function issueCard(i){
+  const r = S.res[i.id], done = !!r;
+  const val = r?.value != null ? ` Answer: <b>${esc(r.value)}</b>.` : r?.join != null ? ` Answer: same carton as line ${r.join}.` : r ? " Acknowledged." : "";
+  let ctl = "";
+  if (!done) {
+    if (i.kind === "ack") ctl = `<button class="btn sm primary" data-ack="${i.id}">I understand</button>`;
+    if (i.kind === "confirm") ctl = `<button class="btn sm primary" data-yes="${i.id}" data-val="${esc(i.val ?? "")}">${esc(i.yes)}</button><input id="in-${i.id}" placeholder="${esc(i.ask)}" aria-label="${esc(i.ask)}"><button class="btn sm" data-set="${i.id}">Use this</button>`;
+    if (i.kind === "number" || i.kind === "text") ctl = `<input id="in-${i.id}" placeholder="${esc(i.ask)}" aria-label="${esc(i.ask)}" ${i.kind==="text"?'style="width:280px"':""}><button class="btn sm primary" data-set="${i.id}">Save</button>${i.zero ? `<button class="btn sm" data-zero="${i.id}">${esc(i.zero)}</button>` : ""}${i.joinPrev != null ? `<button class="btn sm" data-join="${i.id}" data-prev="${i.joinPrev}">Same carton as line ${i.joinPrev}</button>` : ""}`;
+  } else ctl = `<button class="link" data-undo="${i.id}">Change</button>`;
+  return `<div class="issue ${done ? "ok" : i.sev}"><div class="h"><span class="tag ${done ? "ok" : i.sev === "block" ? "block" : "warn"}">${done ? "Answered" : i.sev === "block" ? "Needs an answer" : "Please read"}</span>${i.cell ? `<span class="mono muted">cell ${i.cell}</span>` : ""}</div><span>${i.msg}${val}</span><div class="row">${ctl}</div></div>`;
+}
+function screen1(){
+  const P = S.pl;
+  if (!P) return `<section class="card"><div><h2>Upload your Excel packing list</h2><p class="lead">The file from the supplier with the products, HS codes, weights and prices. Nothing leaves this computer.</p></div>
+    ${dropZone("pl", ".xlsx,.xls", "Drop the Excel file here", "or click to choose it", "XLSX")}</section>${nav(0, 2, "Next")}`;
+  const sh = P.sheet, sumC = P.lines.reduce((s, L) => s + (lineVal(L, "amount") ?? 0), 0), pk = P.lines.reduce((s, L) => s + L.pkgs, 0);
+  const colRows = FIELDS_PL.map(([k, label, , req]) => { const c = sh.cols[k];
+    return `<tr><td>${label}${req ? ' <span class="req">*</span>' : ""}</td><td><select data-col="${k}" ${S.colsConfirmed ? "disabled" : ""}><option value="">— not in file —</option>${sh.heads.filter(h => h.text).map(h => `<option value="${h.c}" ${h.c === c ? "selected" : ""}>${colName(h.c)}: ${esc(h.text.slice(0, 40))}</option>`).join("")}</select></td>
+      <td class="muted">${c != null && P.lines[0] ? esc(String(sh.ws[cellRef(P.lines[0].r, c)]?.w ?? sh.ws[cellRef(P.lines[0].r, c)]?.v ?? "").slice(0, 50)) : ""}</td></tr>`; }).join("");
+  const missingReq = FIELDS_PL.filter(f => f[3] && sh.cols[f[0]] == null);
+  const tc = totalsCheck();
+  const blocks = P.issues.filter(i => i.sev === "block"), warns = P.issues.filter(i => i.sev !== "block");
+  return `<section class="card">
+    <div class="section"><h2>Your Excel file</h2>
+      ${fileChip("pl", ".xlsx,.xls", P.file, `${esc(P.meta.seller || "Seller not found")}${P.meta.invoice ? " · invoice " + esc(P.meta.invoice) : ""} · sheet “${esc(sh.sheetName)}”`, "XLSX")}
+      <div class="stats"><div class="stat"><b>${P.lines.length}</b><span>product lines</span></div><div class="stat"><b>${pk}</b><span>packages</span></div>
+        <div class="stat"><b>${money(sumC)}</b><span>USD</span></div><div class="stat"><b>${kg(weightGroups().reduce((s, g) => s + g.gross, 0))}</b><span>kg gross</span></div></div>
+      <div class="viewer"><div class="viewer-bar"><span class="name">${esc(P.file)}</span>${seg("pl", S.plView, [["doc","As in Excel"],["list","As the app reads it"]])}</div><div class="viewer-body">${S.plView === "doc" ? `<div class="sheet">${sh.sheetHtml}</div>` : plTable()}</div></div>
+    </div>
+    <div class="section"><h3>1. Check that the app reads the right columns</h3>
+      <p class="muted">The app found these columns in row ${sh.hdr + 1}. The last column shows the first product line, so you can see it's right.</p>
+      <div class="scroll"><table class="list"><thead><tr><th>What</th><th>Column in your file</th><th>First line shows</th></tr></thead><tbody>${colRows}</tbody></table></div>
+      ${missingReq.length ? `<div class="note bad">Choose a column for: ${missingReq.map(f => f[1]).join(", ")}.</div>` : ""}
+      <div class="row" style="display:flex;gap:10px;align-items:center">${S.colsConfirmed ? `<span class="tag ok">Confirmed</span><button class="link" data-uncols="1">Change columns</button>` : `<button class="btn primary" data-cols="1" ${missingReq.length ? "disabled" : ""}>Yes, these columns are right</button>`}</div>
+    </div>
+    ${S.colsConfirmed ? `<div class="section"><h3>2. Answer the questions about this file</h3>
+      <p class="muted">${P.issues.length ? `The app found ${plural(P.issues.length, "thing")} it can't decide by itself. Nothing here is guessed: every answer is written into the audit report.` : "The app found nothing unclear in this file."}</p>
+      ${tc.length ? `<div class="note warn"><b>The Excel file's own Total row doesn't match its lines.</b><span>${tc.join("<br>")}</span><span>The app always uses the individual lines.</span></div>` : ""}
+      ${blocks.map(issueCard).join("")}${warns.map(issueCard).join("")}
+      ${groupIssues().map(x => `<div class="issue block"><div class="h"><span class="tag block">Fix the Excel file</span><span class="mono muted">cell ${x.g.key}</span></div><span>${x.msg} Correct the weight in the Excel file and upload it again; the app won't invent a weight.</span></div>`).join("")}
+    </div>` : ""}
+  </section>${nav(0, 2, "Next")}`;
+}
+function plTable(){
+  const lg = lineGross();
+  return `<table class="list"><thead><tr><th class="n">Line</th><th>Row</th><th>Product (English part)</th><th>HS code</th><th class="n">Qty</th><th>Unit</th><th class="n">Net kg</th><th class="n">Gross kg*</th><th class="n">Pkgs</th><th class="n">USD</th></tr></thead><tbody>
+    ${S.pl.lines.map(L => { const a = lineVal(L, "amount"), n = lineVal(L, "net"), g = lg.get(L.no);
+      return `<tr class="${openIssues().some(i => i.line === L.no) ? "bad" : ""}"><td class="n">${L.no}</td><td class="mono">${L.r + 1}</td><td>${esc(lineDesc(L))}</td><td class="mono">${hsFmt(lineHS(L).padEnd(8, "0"))}</td>
+        <td class="n">${L.qty ?? ""}</td><td>${esc(L.unit)}</td><td class="n">${n == null ? "?" : kg(n)}</td><td class="n">${g ? kg(g.g) + (g.shared ? "*" : "") : ""}</td><td class="n">${L.pkgs || ""}</td><td class="n">${a == null ? "?" : money(a)}</td></tr>`; }).join("")}</tbody></table>
+    <p class="muted small" style="padding:8px 12px">*Gross weight is written once per carton. When several lines share a carton, the carton's weight is shared by net weight; the shares add up to the carton weight exactly.</p>`;
+}
+
+/* ---- step 2 ---- */
+function sel(id, map, value, label, note){
+  const opts = [...map.entries()].sort((a,b) => a[0].localeCompare(b[0]));
+  return `<div class="field ${value ? "" : "missing"}"><label for="${id}">${label} <span class="req">*</span></label><select id="${id}" data-decl="${id.replace("d-","")}" ${S.decl.confirmed ? "disabled" : ""}><option value="">Choose…</option>${opts.map(([c, n]) => `<option value="${esc(c)}" ${c === value ? "selected" : ""}>${esc(c)} — ${esc(n)}</option>`).join("")}</select>${note ? `<span class="src">${note}</span>` : ""}</div>`;
+}
+function screen2(){
+  const choice = `<div class="choices">
+    <button class="choice" data-mode="existing" aria-pressed="${S.mode==="existing"}"><b>Add to an XML file I already have</b><span>Use the XML exported from the customs portal. Lines already in it are matched and skipped.</span></button>
+    <button class="choice" data-mode="new" aria-pressed="${S.mode==="new"}"><b>Start a new XML file</b><span>Make a fresh declaration from this Excel file.</span></button></div>`;
+  let body = "";
+  if (S.mode === "existing") {
+    if (!S.xml) body = dropZone("xml", ".xml", "Drop the XML file here", "the file from “Export XML” on the customs portal", "XML");
+    else {
+      const x = S.xml, H = x.header;
+      const facts = [["Customs office", `${H.office} ${H.officeName}`], ["Reference", H.ref], ["Consignee", H.consignee], ["Exporter", H.exporter], ["Exchange rate", `1 ${H.cur} = ${H.rate} ETB`], ["Invoice total", `${money(H.invC)} ${H.cur}`]];
+      const badItems = x.filled.filter(i => !tline(i.hs));
+      body = `${fileChip("xml", ".xml", x.file, `${plural(x.filled.length, "item")} already declared · ${esc(H.office)} · ref ${esc(H.ref)}`, "XML")}
+        ${x.filled.filter(i => i.anomaly).map(i => `<div class="note bad"><b>Check item ${i.rank} (${esc(i.desc)}) in the portal.</b> Its freight is ${f0(i.frNat)} ETB on a ${money(i.usdC)} USD product, about ${i.anomaly} times its share. The app doesn't change existing items.</div>`).join("")}
+        ${badItems.length ? `<div class="note bad"><b>${plural(badItems.length, "item")} in this XML ${badItems.length===1?"has an HS code":"have HS codes"} that ${badItems.length===1?"is":"are"} not in the official tariff:</b> ${badItems.map(i => `item ${i.rank} ${hsFmt(i.hs)} ${esc(i.desc)}`).join("; ")}. The portal will reject the file until ${badItems.length===1?"it is":"they are"} fixed; you can choose the right code in the next step.</div>` : ""}
+        <div class="viewer"><div class="viewer-bar"><span class="name">${esc(x.file)}</span>${seg("xml", S.xmlView, [["easy","Easy view"],["raw","Raw XML"]])}</div><div class="viewer-body">
+          ${S.xmlView === "easy" ? `<div class="facts">${facts.map(([k,v]) => `<div><span>${k}</span><b>${esc(v)}</b></div>`).join("")}</div>${xmlTable(x.filled.map(i => ({rank:i.rank, hs:i.hs, desc:i.desc, pkgs:i.pkgs, gross:i.gross, usd:i.usdC, bad:!tline(i.hs) || i.anomaly})))}` : `<pre class="xml">${hl(x.text)}</pre>`}</div></div>`;
+    }
+  } else if (S.mode === "new") {
+    const h = S.hdr, fld = (k, label, hint, cls, req) => `<div class="field ${cls||""} ${req && !h[k] ? "missing" : ""}"><label for="h-${k}">${label}${req ? ' <span class="req">*</span>' : ""}</label><input id="h-${k}" data-hdr="${k}" value="${esc(h[k])}" ${hint?`placeholder="${esc(hint)}"`:""}></div>`;
+    body = `<div class="fields">
+        ${fld("rate", "Exchange rate: 1 USD = ? ETB", "the official rate for the declaration date", "", true)}
+        ${fld("freight", "Freight total (USD)", "from the bill of lading")}${fld("insurance", "Insurance total (ETB)", "from the insurance certificate")}${fld("other", "Other costs total (USD)", "")}
+        ${fld("exporter", "Exporter / seller", "", "wide")}${fld("consignee", "Consignee (importer) name", "", "wide")}
+        ${fld("consigneeCode", "Consignee TIN", "")}${fld("declarantCode", "Declarant TIN", "")}${fld("declarantName", "Declarant name", "")}${fld("refNo", "Your reference number", "")}
+        ${fld("office", "Customs office code", "e.g. AAK00")}${fld("officeName", "Customs office name", "")}
+      </div><p class="muted small">Official exchange rates: <span class="mono">customs.erca.gov.et/trade/customs/rates/search</span></p>`;
+  }
+  let declBox = "";
+  if (S.mode && (S.mode === "new" || S.xml)) {
+    const ex = S.mode === "existing" ? S.xml.filled : [];
+    const hint = (k, name) => { const m = majority(ex.map(i => i[k])); return m.length ? `Your XML uses ${m.map(([v, n]) => `${esc(v)} (${n} ${n===1?"item":"items"})`).join(", ")}` : ""; };
+    declBox = `<div class="section"><h3>Details for the new items</h3>
+      <p class="muted">These can't be read from the Excel file, so you choose them. They apply to every new item; you can change the national procedure for single items in the next step.</p>
+      <div class="fields">
+        ${sel("d-origin", TAR.countries, S.decl.origin, "Country of origin", hint("origin") || "From the certificate of origin")}
+        ${sel("d-pkgType", TAR.pkgs, S.decl.pkgType, "Type of package", hint("pkgCode"))}
+        ${sel("d-regime", TAR.regimes, S.decl.regime, "Customs procedure", hint("ext"))}
+        ${sel("d-addl", TAR.addl, S.decl.addl, "National procedure (additional code)", hint("addl") + (hint("addl") ? ". " : "") + "421 is only for goods covered by a government exemption permit.")}
+      </div>
+      <div>${S.decl.confirmed ? `<span class="tag ok">Confirmed</span> <button class="link" data-undecl="1">Change</button>` : `<button class="btn primary" data-decl-ok="1" ${S.decl.origin && S.decl.pkgType && S.decl.regime && S.decl.addl ? "" : "disabled"}>These are correct</button>`}</div></div>`;
+  }
+  return `<section class="card"><div class="section"><h2>Where should the products go?</h2>${choice}${body}</div>${declBox}</section>${nav(1, 3, "Next")}`;
+}
+function xmlTable(rows){
+  return `<table class="list"><thead><tr><th class="n">Item</th><th>HS code</th><th>Product</th><th class="n">Packages</th><th class="n">Gross kg</th><th class="n">USD</th></tr></thead><tbody>
+    ${rows.map(i => `<tr class="${i.isNew?"new":""} ${i.bad?"bad":""}"><td class="n">${i.rank}</td><td class="mono">${hsFmt(i.hs)}${tline(i.hs) ? "" : ' <span class="tag block">not in tariff</span>'}</td><td>${esc(i.desc)}${i.isNew?' <span class="tag ok">new</span>':""}</td><td class="n">${i.pkgs}</td><td class="n">${kg(i.gross)}</td><td class="n">${money(i.usd)}</td></tr>`).join("")}</tbody></table>`;
+}
+
+/* ---- step 3 ---- */
+function screen3(){
+  const parts = [];
+  // A. existing items: which Excel lines are they?
+  if (S.mode === "existing") {
+    const props = matchProposals(), decl = declaredLines();
+    const confirmed = S.xml.filled.filter(i => S.match[i.rank]), none = S.xml.filled.filter(i => S.matchAck[i.rank]);
+    const bad = S.xml.filled.filter(i => !tline(i.hs));
+    parts.push(`<div class="section"><h3>A. Lines that are already in your XML</h3>
+      <p class="muted">For each item already in the XML, confirm which Excel lines it covers. Those lines won't be added again.</p>
+      <div class="stats"><div class="stat"><b>${confirmed.length} of ${S.xml.filled.length}</b><span>items matched</span></div><div class="stat"><b>${decl.size}</b><span>Excel lines covered</span></div></div>
+      ${props.some(p => p.prop) ? `<div><button class="btn primary" data-matchall="1">Confirm all ${props.filter(p => p.prop).length} suggested matches</button></div>` : ""}
+      ${props.map(p => `<div class="issue ${p.prop ? "" : "block"}"><div class="h"><span class="tag ${p.prop ? "warn" : "block"}">${p.prop ? "Suggested" : "No match found"}</span><b>Item ${p.it.rank}: ${esc(p.it.desc)}</b><span class="mono muted">${hsFmt(p.it.hs)} · ${money(p.it.usdC)} USD</span></div>
+          ${p.prop ? `<span>Excel ${p.prop.length === 1 ? "line" : "lines"} ${p.prop.map(L => `<b>${L.no}</b> ${esc(lineName(L))} (${money(lineVal(L, "amount"))})`).join(", ")}: ${p.why}.</span>
+            <div class="row"><button class="btn sm primary" data-match="${p.it.rank}" data-lines="${p.prop.map(L => L.no).join(",")}">Yes, these lines</button><button class="btn sm" data-pickfor="${p.it.rank}">Choose lines myself</button></div>`
+          : `<span>No Excel lines with HS ${hsFmt(p.it.hs).slice(0,7)} add up to ${money(p.it.usdC)} USD.</span><div class="row"><button class="btn sm primary" data-pickfor="${p.it.rank}">Choose lines myself</button><button class="btn sm" data-nomatch="${p.it.rank}">This item is not in the Excel file</button></div>`}
+          ${S.open === "pick:" + p.it.rank ? pickLines(p.it) : ""}</div>`).join("")}
+      ${confirmed.length || none.length ? `<details><summary class="muted">Confirmed (${confirmed.length + none.length})</summary><div class="scroll"><table class="list"><tbody>${[...confirmed, ...none].map(i => `<tr><td class="n">${i.rank}</td><td>${esc(i.desc)}</td><td>${S.match[i.rank] ? `lines ${S.match[i.rank].join(", ")}` : "not in the Excel file"}</td><td><button class="link" data-unmatch="${i.rank}">Undo</button></td></tr>`).join("")}</tbody></table></div></details>` : ""}
+      ${bad.map(i => { const opts = TAR.by6.get(i.hs.slice(0,6)) || [];
+        return `<div class="issue block"><div class="h"><span class="tag block">Not in tariff</span><b>Item ${i.rank}: ${esc(i.desc)}</b></div><span>Its HS code ${hsFmt(i.hs)} is not in the official tariff, so the portal will refuse the file. Choose the correct code (only the HS code of this item changes):</span>
+          ${opts.length ? opts.map(o => `<label class="opt ${S.fixCode[i.rank] === o.c ? "on" : ""}"><input type="radio" name="fix-${i.rank}" data-fix="${i.rank}" value="${o.c}" ${S.fixCode[i.rank] === o.c ? "checked" : ""}><span><b class="mono">${hsFmt(o.c)}</b> ${esc(o.d)} <span class="muted small">· ${rateTxt(o)}</span></span></label>`).join("") : `<span>No tariff lines under ${hsFmt(i.hs).slice(0,7)}. Use the HS code lookup, then fix it in the portal.</span>`}</div>`; }).join("")}
+    </div>`);
+  }
+  // B. national codes
+  const qs = codeQuestions();
+  parts.push(`<div class="section"><h3>${S.mode === "existing" ? "B" : "A"}. Choose the Ethiopian HS code</h3>
+    <p class="muted">Only the first 6 digits of an HS code are the same in every country. The supplier's last 2 digits are Chinese, so for each product the app shows the Ethiopian tariff lines under the same 6 digits. When there is only one, it is used automatically.</p>
+    ${qs.length ? qs.map(q => codeQuestion(q)).join("") : `<div class="note good">Every product has exactly one matching Ethiopian tariff line.</div>`}
+  </div>`);
+  // C. items
+  const B = buildItems(), items = B.items, noCode = newLines().filter(L => !chosenCode(L).code);
+  const dupWithXml = S.mode === "existing" ? items.filter(it => S.xml.filled.some(i => i.hs === it.code) && !S.dupAck[it.code]) : [];
+  parts.push(`<div class="section"><h3>${S.mode === "existing" ? "C" : "B"}. Check each new item</h3>
+    <div class="stats"><div class="stat"><b>${items.length}</b><span>new items</span></div><div class="stat"><b>${items.filter(i => !i.problems.length).length}</b><span>complete</span></div>
+      <div class="stat"><b>${money(items.reduce((s, i) => s + i.usd, 0))}</b><span>USD</span></div><div class="stat"><b>${noCode.length}</b><span>lines waiting for an HS code</span></div></div>
+    ${B.moves.length ? `<div class="issue ${S.pkgAck ? "ok" : ""}"><div class="h"><span class="tag ${S.pkgAck ? "ok" : "warn"}">${S.pkgAck ? "Agreed" : "Please check"}</span><b>Package counts</b></div>
+      <span>Every item needs at least 1 package, but ${plural(B.moves.length, "item")} ${B.moves.length===1?"has":"have"} no carton of ${B.moves.length===1?"its":"their"} own (${B.moves.length===1?"it shares":"they share"} a carton with another product). To keep the total at ${B.pkgTotal} packages, 1 package is moved: ${B.moves.map(m => `${hsFmt(m.from.code)} → ${hsFmt(m.to.code)}`).join(", ")}.</span>
+      <div class="row">${S.pkgAck ? `<button class="link" data-pkgack="0">Change</button>` : `<button class="btn sm primary" data-pkgack="1">OK, use these counts</button><span class="muted small">Or type package counts in each item below.</span>`}</div></div>` : ""}
+    ${dupWithXml.map(it => `<div class="issue"><div class="h"><span class="tag warn">Please check</span><b>${hsFmt(it.code)} is already used by an item in your XML</b></div><span>The new lines will be a second item with the same code. If they belong in the existing item, go back to part A and add them to it.</span><div class="row"><button class="btn sm primary" data-dupack="${it.code}">Keep as a separate item</button></div></div>`).join("")}
+    <div class="pick">${items.map(it => itemRow(it)).join("")}</div>
+  </div>`);
+  return `<section class="card"><div><h2>Items</h2><p class="lead">Go through the parts in order. Anything marked red needs your answer.</p></div>${parts.join("")}</section>${nav(2, 4, "Check the file")}`;
+}
+function pickLines(it){
+  const taken = declaredLines(), cur = new Set(S.picking || []);
+  const pool = S.pl.lines.filter(L => (!taken.has(L.no) || taken.get(L.no) === it.rank) && !S.excluded[L.no]);
+  const sum = pool.filter(L => cur.has(L.no)).reduce((s, L) => s + lineVal(L, "amount"), 0);
+  return `<div class="scroll" style="max-height:320px;overflow:auto;border:1px solid var(--line);border-radius:8px"><table class="lines"><tbody>${pool.map(L => `<tr><td><input type="checkbox" data-pickline="${L.no}" ${cur.has(L.no) ? "checked" : ""} aria-label="Line ${L.no}"></td><td>${L.no}</td><td>${esc(lineName(L))}</td><td class="mono">${hsFmt(lineHS(L).padEnd(8,"0"))}</td><td class="n">${money(lineVal(L, "amount"))}</td></tr>`).join("")}</tbody></table></div>
+    <div class="row"><span>Selected: <b>${money(sum)}</b> of ${money(it.usdC)} USD ${sum === it.usdC ? '<span class="tag ok">exact</span>' : '<span class="tag block">different</span>'}</span>
+      <button class="btn sm primary" data-pickdone="${it.rank}" ${cur.size ? "" : "disabled"}>Use ${plural(cur.size, "line")}</button><button class="btn sm" data-pickcancel="1">Cancel</button></div>
+    ${sum !== it.usdC && cur.size ? `<span class="small" style="color:var(--amber)">The value differs from the XML. The XML item stays as it is; only these lines are marked as already declared.</span>` : ""}`;
+}
+function codeQuestion(q){
+  const s6 = `${q.s6.slice(0,4)}.${q.s6.slice(4)}`, names = [...new Set(q.lines.map(lineName))].slice(0, 6).join(", ");
+  if (!q.opts.length) return `<div class="issue block"><div class="h"><span class="tag block">Not in the Ethiopian tariff</span><b>${s6}</b><span class="muted">${plural(q.lines.length, "line")}: ${esc(names)}</span></div>
+    <span>There is no Ethiopian tariff line starting with ${s6}. The supplier's HS code may be wrong. Find the right code with the lookup, then type it for these lines.</span>
+    <div class="row"><button class="btn sm" data-lookup="${q.s6.slice(0,4)}">Look up ${q.s6.slice(0,4)}</button><input id="lc-${q.s6}" placeholder="8-digit code" style="width:130px;padding:6px 9px;border:1px solid var(--line);border-radius:7px;font-family:var(--mono)"><button class="btn sm primary" data-setcode="${q.s6}">Use for these lines</button></div></div>`;
+  return `<div class="issue ${S.code[q.s6] ? "ok" : "block"}"><div class="h"><span class="tag ${S.code[q.s6] ? "ok" : "block"}">${S.code[q.s6] ? "Chosen" : "Choose one"}</span><b>${s6}</b><span class="muted">${plural(q.lines.length, "line")}: ${esc(names)} · Excel says ${[...new Set(q.lines.map(L => hsFmt(lineHS(L).padEnd(8,"0"))))].join(", ")}</span></div>
+    ${q.opts.map(o => `<label class="opt ${S.code[q.s6] === o.c ? "on" : ""}"><input type="radio" name="c-${q.s6}" data-code6="${q.s6}" value="${o.c}" ${S.code[q.s6] === o.c ? "checked" : ""}><span><b class="mono">${hsFmt(o.c)}</b> ${esc(o.d)}<br><span class="muted small">${o.u ? `unit ${esc(o.u)} · ` : ""}${rateTxt(o)}</span></span></label>`).join("")}
+    <span class="muted small">Descriptions are the official tariff text. Some lines only make sense with their heading: use “HS code lookup” to see the whole heading.</span></div>`;
+}
+function itemRow(it){
+  const open = S.open === it.code, E = S.itemEdit[it.code] || {};
+  const pill = it.problems.length ? `<span class="tag block">${plural(it.problems.length, "thing")} to fix</span>` : `<span class="tag ok">Complete</span>`;
+  return `<div class="prow"><div style="min-width:0"><div class="name">${esc(it.desc || "(no description)")}</div>
+      <div class="sub"><span class="mono">${hsFmt(it.code)}</span> ${esc(it.t?.d || "")} · ${plural(it.lines.length, "line")} · ${plural(it.pkgs, "package")} · ${kg(it.gross)} kg · ${money(it.usd)} USD${it.units.length ? ` · ${it.units.map(u => `${u.code} ${u.qty ?? "?"}`).join(", ")}` : ""} · procedure ${esc(it.addl)}</div>
+      ${it.problems.length && !open ? `<div class="small" style="color:var(--red)">${esc(it.problems[0])}</div>` : ""}</div>
+    <div class="right">${pill}<button class="btn sm" data-open="${it.code}">${open ? "Close" : "Open"}</button></div>
+    ${open ? `<div class="more">
+      ${it.problems.map(p => `<div class="note bad">${esc(p)}</div>`).join("")}
+      <div class="fields">
+        <div class="field wide ${it.desc.trim() && it.desc.length <= 250 ? "" : "missing"}"><label for="e-desc">Description on the declaration (${it.desc.length}/250)</label><textarea id="e-desc" data-edit="desc">${esc(it.desc)}</textarea><span class="src">${esc(it.descSrc)}</span></div>
+        ${it.units.map((u, i) => `<div class="field ${u.qty ? "" : "missing"}"><label for="e-u${i}">Quantity in ${esc(u.name || u.code)} <span class="req">*</span></label><input id="e-u${i}" data-unit="${i}" value="${esc(E.suppQty?.[i] ?? (u.auto ? u.qty : ""))}" placeholder="${u.auto ? "" : "Type it"}"><span class="src">Unit ${esc(u.code)} is required by the tariff. ${u.auto ? `Filled from ${esc(u.src)}.` : `Excel gives ${u.plUnits.map(esc).join(", ")}, which the app can't convert, so type it.`}</span></div>`).join("")}
+        <div class="field"><label for="e-pkgs">Number of packages</label><input id="e-pkgs" data-edit="pkgs" value="${it.pkgs}"><span class="src">${esc(it.pkgsSrc)}</span></div>
+        <div class="field"><label for="e-addl">National procedure</label><select id="e-addl" data-edit="addl">${[...TAR.addl.entries()].map(([c, n]) => `<option value="${esc(c)}" ${c === it.addl ? "selected" : ""}>${esc(c)} — ${esc(n.slice(0, 60))}</option>`).join("")}</select><span class="src">${esc(it.addlSrc)}</span></div>
+        <div class="field"><label for="e-licence">Licence number</label><input id="e-licence" data-edit="licence" value="${esc(E.licence || "")}"></div>
+        <div class="field"><label for="e-docs">Required documents</label><input id="e-docs" data-edit="docs" value="${esc(E.docs || "")}"></div>
+      </div>
+      <div class="note"><b>Official tariff: ${hsFmt(it.code)}</b><span>${esc(it.t?.d || "")} · ${it.t?.u ? "unit " + esc(it.t.u) + " · " : "no supplementary unit · "}${rateTxt(it.t)}</span>
+        <span class="small">Gross weight: ${it.grossShared ? "shared from carton weights by net weight (some cartons hold other products too)" : "carton weights exactly as in Excel"}.</span></div>
+      <div class="scroll"><table class="lines"><thead><tr><th>Line</th><th>Excel description</th><th>Excel HS</th><th class="n">Qty</th><th class="n">Net kg</th><th class="n">USD</th><th></th></tr></thead><tbody>
+        ${it.lines.map(L => `<tr><td>${L.no}</td><td>${esc(lineDesc(L))}</td><td class="mono">${hsFmt(lineHS(L).padEnd(8,"0"))}</td><td class="n">${L.qty ?? ""} ${esc(L.unit)}</td><td class="n">${kg(lineVal(L, "net"))}</td><td class="n">${money(lineVal(L, "amount"))}</td>
+          <td><select data-move="${L.no}" aria-label="Move line ${L.no}"><option value="">Keep here</option>${(TAR.by6.get(lineHS(L).slice(0,6)) || []).filter(o => o.c !== it.code).map(o => `<option value="${o.c}">Use ${hsFmt(o.c)} instead</option>`).join("")}<option value="__out">Leave out of the XML…</option></select></td></tr>`).join("")}
+      </tbody></table></div>
+      <div><button class="btn sm primary" data-open="${it.code}">Done</button> <button class="link" data-reset="${it.code}">Undo my changes to this item</button></div>
+    </div>` : ""}</div>`;
+}
+
+/* ---- step 4 ---- */
+function screen4(){
+  const R = build(), checks = runChecks(R), allOk = checks.every(c => c.ok);
+  const newR = new Set(R.out.map(o => o.rank));
+  const rows = [...(S.mode === "existing" ? S.xml.filled.map(i => ({rank:i.rank, hs:S.fixCode[i.rank] || i.hs, desc:i.desc, pkgs:i.pkgs, gross:i.gross, usd:i.usdC})) : []),
+    ...R.out.map(o => ({rank:o.rank, hs:o.it.code, desc:o.it.desc, pkgs:o.it.pkgs, gross:o.it.gross, usd:o.it.usd, isNew:1}))];
+  let raw = "";
+  if (S.outView === "raw") raw = R.xml.split(/(?=<Item>)/).map(p => { const m = p.match(/^<Item>\s*<Rank>(\d+)<\/Rank>/); if (m && newR.has(+m[1])) { const e = p.indexOf("</Item>") + 7; return `<mark>${hl(p.slice(0,e))}</mark>${hl(p.slice(e))}`; } return hl(p); }).join("");
+  const canDl = allOk && S.signOk && S.signName.trim().length > 1;
+  return `<section class="card">
+    <div class="section"><h2>Check and download</h2>
+      <p class="lead">The app has built the file and read it back. Every check below must pass before you can download.</p>
+      <div class="checks">${checks.map(c => `<div class="check ${c.ok ? "pass" : "fail"}"><span class="ic">${c.ok ? "✓" : "✗"}</span><b>${esc(c.title)}</b><span class="d">${esc(c.detail || "")}</span></div>`).join("")}</div>
+      ${allOk ? "" : `<div class="note bad">Go back to fix what is marked ✗. The download stays locked until every check passes.</div>`}
+    </div>
+    <div class="section"><div class="viewer"><div class="viewer-bar"><span class="name">${esc(outName(".xml"))}</span>${seg("out", S.outView, [["easy","Easy view"],["raw","Raw XML"]])}</div>
+      <div class="viewer-body">${S.outView === "easy" ? xmlTable(rows) : `<pre class="xml">${raw}</pre>`}</div></div></div>
+    <div class="section signoff">
+      <h3>Your check</h3>
+      <p class="muted">The app copies and adds up; it doesn't know the goods. Before using this file, compare the new items with the commercial invoice, packing list and certificate of origin, and check the HS classification. The person who submits the declaration is responsible for it.</p>
+      <div class="field" style="max-width:360px"><label for="sign-name">Your full name</label><input id="sign-name" data-sign="name" value="${esc(S.signName)}"></div>
+      <label class="chk"><input type="checkbox" data-sign="ok" ${S.signOk ? "checked" : ""}><span>I have checked the new items against the documents, and I understand that I am responsible for the declaration I submit.</span></label>
+      <div class="row" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <button class="btn big primary" data-download="xml" ${canDl ? "" : "disabled"}>Download XML</button>
+        <button class="btn big" data-download="audit" ${canDl ? "" : "disabled"}>Download audit report</button>
+        ${canDl ? "" : `<span class="why">${allOk ? "Enter your name and tick the box." : "Some checks failed."}</span>`}
+      </div>
+      <p class="muted small">Keep the audit report with the declaration. It lists, for every value in the XML, the Excel cell, tariff line or decision it came from.</p>
+    </div>
+  </section>${nav(3, 0)}<div class="nav"><span></span><button class="link" data-restart="1">Start again with other files</button></div>`;
+}
+
+/* ---- HS lookup drawer ---- */
+function renderLookup(){
+  const D = $("drawer");
+  if (S.lookup == null) { D.innerHTML = ""; return; }
+  const q = S.lookup.trim(), digits = q.replace(/[\s.]/g, "");
+  let res = [];
+  if (T && q) {
+    if (/^\d{2,}$/.test(digits)) res = T.lines.filter(l => l.c.startsWith(digits.slice(0, 8)));
+    else { const w = q.toLowerCase().split(/\s+/).filter(Boolean); res = T.lines.filter(l => w.every(x => l.d.toLowerCase().includes(x))); }
+  }
+  const byHead = new Map(); for (const l of res.slice(0, 400)) { const h = l.c.slice(0,4); if (!byHead.has(h)) byHead.set(h, []); byHead.get(h).push(l); }
+  D.innerHTML = `<div class="drawer" data-close="1"><div class="inner" role="dialog" aria-label="HS code lookup">
+    <div style="display:flex;align-items:center;gap:10px"><h2 style="font-size:22px;margin-right:auto">HS code lookup</h2><button class="btn sm" data-close="1">Close</button></div>
+    <p class="muted">The official Ethiopian customs tariff (${T ? T.count.toLocaleString() + " lines, downloaded " + T.fetched + " from customs.erca.gov.et" : "not loaded"}). Search by code (at least 2 digits) or by words.</p>
+    <input id="lookup-q" value="${esc(q)}" placeholder="e.g. 8414 or compressor" style="padding:11px 13px;border:1px solid var(--line);border-radius:10px;font-size:16px;background:var(--surface)" autofocus>
+    ${q ? `<p class="muted small">${res.length.toLocaleString()} ${res.length === 1 ? "line" : "lines"}${res.length > 400 ? ", showing the first 400" : ""}</p>` : ""}
+    ${[...byHead.entries()].map(([h, ls]) => `<div class="tres"><div class="tline head"><span class="c">${h}</span><span>${plural((TAR.byHead.get(h) || []).length, "line")} in this heading</span><button class="link" data-lookup="${h}">Show all</button></div>
+      ${ls.map(l => `<div class="tline"><span class="c">${hsFmt(l.c)}</span><span>${esc(l.d)}</span><span class="muted small">${l.u ? esc(l.u) : ""}</span><span class="r">${rateTxt(l)}</span></div>`).join("")}</div>`).join("")}
+  </div></div>`;
+  const inp = $("lookup-q"); if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+}
+
+function render(){
+  if (!T) { $("main").innerHTML = `<section class="card"><h2>The tariff file is missing</h2><p class="lead">Keep <span class="mono">tariff-data.js</span> in the same folder as this page. To create or refresh it, run <span class="mono">python3 tools/fetch_tariff.py</span>.</p></section>`; renderSteps(); return; }
+  while (S.step > 1 && !ready(S.step)) S.step--;
+  renderSteps();
+  $("main").innerHTML = [0, screen1, screen2, screen3, screen4][S.step]();
+  renderLookup();
+  bindDrops();
+}
+
+/* ================= events ================= */
+function bindDrops(){
+  for (const [id, fn] of [["pl", f => f.arrayBuffer().then(b => loadPL(f.name, b))], ["xml", f => f.text().then(t => loadXML(f.name, t))]]) {
+    const input = $("f-" + id); if (input) input.onchange = () => input.files[0] && fn(input.files[0]);
+    const z = $("dz-" + id); if (!z) continue;
+    z.ondragover = e => { e.preventDefault(); z.classList.add("drag"); };
+    z.ondragleave = () => z.classList.remove("drag");
+    z.ondrop = e => { e.preventDefault(); z.classList.remove("drag"); const f = e.dataTransfer.files[0]; if (f) fn(f); };
+  }
+}
+function reparse(){ const p = parsePL(S.pl.sheet); Object.assign(S.pl, p); }
+function resetAfterPL(){ Object.assign(S, {res:{}, match:{}, matchAck:{}, code:{}, lineCode:{}, excluded:{}, itemEdit:{}, pkgAck:false, dupAck:{}, fixCode:{}, open:null, colsConfirmed:false, signOk:false}); }
+function loadPL(name, buf){
+  try { const sheet = readSheet(buf); resetAfterPL(); S.pl = {file:name, sheet, ...parsePL(sheet)};
+    if (!S.hdr.exporter) S.hdr.exporter = S.pl.meta.seller; if (!S.hdr.consignee) S.hdr.consignee = S.pl.meta.consignee; render(); }
+  catch (e) { toast(e.message); }
+}
+function loadXML(name, text){ try { S.xml = {file:name, ...parseXML(text)}; Object.assign(S, {match:{}, matchAck:{}, fixCode:{}}); S.decl.confirmed = false; if (S.mode === "existing") prefillDecl(); render(); } catch (e) { toast(e.message); } }
+function setRes(id, r){ S.res[id] = r; S.signOk = false; }
+
+document.addEventListener("click", e => {
+  const t = e.target.closest("button,[data-close]"); if (!t) return;
+  const d = t.dataset;
+  if (d.close !== undefined) { if (e.target === t || t.tagName === "BUTTON") { S.lookup = null; render(); } return; }
+  if (d.go) { const s = +d.go; if (s && ready(s)) { S.step = s; S.open = null; window.scrollTo({top:0}); render(); } return; }
+  if (t.id === "open-lookup") { S.lookup = ""; return render(); }
+  if (d.lookup) { S.lookup = d.lookup; return render(); }
+  if (d.view) { const [k, v] = d.view.split(":"); S[k + "View"] = v; return render(); }
+  // step 1
+  if (d.cols) { S.colsConfirmed = true; reparse(); return render(); }
+  if (d.uncols) { S.colsConfirmed = false; return render(); }
+  if (d.ack) { setRes(d.ack, {ok:true}); return render(); }
+  if (d.yes) { const i = S.pl.issues.find(x => x.id === d.yes); setRes(d.yes, i.val != null && i.val !== "" ? {value:i.val} : i.id.startsWith("hsdate") ? {value:S.pl.lines.find(L => L.no === i.line).hs} : {ok:true}); return render(); }
+  if (d.set) {
+    const i = S.pl.issues.find(x => x.id === d.set), v = ($("in-" + d.set)?.value || "").trim();
+    if (!v) { toast("Type a value first"); return; }
+    if (i.kind === "number" || i.kind === "confirm" && !i.id.startsWith("hsdate")) { const x = +v.replace(",", "."); if (!isFinite(x) || x < 0) { toast("That isn't a number"); return; } setRes(d.set, {value:x}); }
+    else if (i.id.startsWith("hs")) { if (v.replace(/\D/g, "").length < 6) { toast("An HS code needs at least 6 digits"); return; } setRes(d.set, {value:v.replace(/\D/g, "")}); }
+    else setRes(d.set, {value:v});
+    return render();
+  }
+  if (d.zero) { setRes(d.zero, {value:0}); return render(); }
+  if (d.join) { setRes(d.join, {join:+d.prev}); return render(); }
+  if (d.undo) { delete S.res[d.undo]; return render(); }
+  // step 2
+  if (d.mode) { S.mode = d.mode; S.decl.confirmed = false; if (d.mode === "existing" && S.xml) prefillDecl(); return render(); }
+  if (d.declOk) { S.decl.confirmed = true; return render(); }
+  if (d.undecl) { S.decl.confirmed = false; return render(); }
+  // step 3
+  if (d.matchall) { for (const p of matchProposals()) if (p.prop && !Object.values(S.match).flat().some(no => p.prop.some(L => L.no === no))) S.match[p.it.rank] = p.prop.map(L => L.no); return render(); }
+  if (d.match) { S.match[d.match] = d.lines.split(",").map(Number); return render(); }
+  if (d.nomatch) { S.matchAck[d.nomatch] = "none"; return render(); }
+  if (d.unmatch) { delete S.match[d.unmatch]; delete S.matchAck[d.unmatch]; return render(); }
+  if (d.pickfor) { S.open = "pick:" + d.pickfor; S.picking = S.match[d.pickfor] ? [...S.match[d.pickfor]] : []; return render(); }
+  if (d.pickcancel) { S.open = null; return render(); }
+  if (d.pickdone) { S.match[d.pickdone] = [...S.picking]; S.open = null; return render(); }
+  if (d.setcode) { const v = ($("lc-" + d.setcode)?.value || "").replace(/\D/g, ""); if (!tline(v)) { toast(`${v ? hsFmt(v) : "That"} is not in the official tariff`); return; }
+    for (const L of newLines()) if (lineHS(L).slice(0,6) === d.setcode) S.lineCode[L.no] = v; return render(); }
+  if (d.pkgack) { S.pkgAck = d.pkgack === "1"; return render(); }
+  if (d.dupack) { S.dupAck[d.dupack] = true; return render(); }
+  if (d.open) { S.open = S.open === d.open ? null : d.open; return render(); }
+  if (d.reset) { delete S.itemEdit[d.reset]; return render(); }
+  // step 4
+  if (d.download) {
+    const R = build(); if (!runChecks(R).every(c => c.ok) || !S.signOk) return;
+    if (d.download === "xml") { download(outName(".xml"), R.xml, "application/xml"); toast(`Saved ${outName(".xml")}`); }
+    else { download(outName("-audit.csv"), auditCSV(R), "text/csv"); toast("Saved the audit report"); }
+    return;
+  }
+  if (d.restart) { S.pl = null; S.xml = null; S.mode = null; S.step = 1; S.decl = {origin:"", pkgType:"", regime:"", addl:"", confirmed:false}; resetAfterPL(); return render(); }
+});
+function prefillDecl(){
+  // show what the XML uses, but the person still confirms
+  const x = S.xml.filled, top = k => majority(x.map(i => i[k]))[0]?.[0] || "";
+  if (!S.decl.origin) S.decl.origin = TAR.countries.has(top("origin")) ? top("origin") : "";
+  if (!S.decl.pkgType) S.decl.pkgType = TAR.pkgs.has(top("pkgCode")) ? top("pkgCode") : "";
+  if (!S.decl.regime) S.decl.regime = TAR.regimes.has(top("ext")) ? top("ext") : "";
+}
+document.addEventListener("change", e => {
+  const t = e.target, d = t.dataset;
+  if (d.col) { S.pl.sheet.cols[d.col] = t.value === "" ? undefined : +t.value; if (t.value === "") delete S.pl.sheet.cols[d.col]; reparse(); return render(); }
+  if (d.decl) { S.decl[d.decl] = t.value; return render(); }
+  if (d.hdr) { S.hdr[d.hdr] = t.value; return render(); }
+  if (d.code6) { S.code[d.code6] = t.value; S.signOk = false; return render(); }
+  if (d.fix) { S.fixCode[d.fix] = t.value; return render(); }
+  if (d.pickline) { const no = +d.pickline, s = new Set(S.picking); t.checked ? s.add(no) : s.delete(no); S.picking = [...s]; return render(); }
+  if (d.edit) { const E = (S.itemEdit[S.open] ||= {}); E[d.edit] = t.value; if (d.edit === "pkgs") { const v = +t.value; if (!Number.isInteger(v) || v < 1) { toast("Packages must be a whole number, at least 1"); delete E.pkgs; } } S.signOk = false; return render(); }
+  if (d.unit) { const E = (S.itemEdit[S.open] ||= {}); (E.suppQty ||= [])[+d.unit] = t.value.trim(); S.signOk = false; return render(); }
+  if (d.move) {
+    const no = +d.move;
+    if (t.value === "__out") return renderExcludeAsk(no);
+    if (t.value) { S.lineCode[no] = t.value; toast(`Line ${no} now uses ${hsFmt(t.value)}`); S.open = t.value; }
+    return render();
+  }
+  if (d.sign === "ok") { S.signOk = t.checked; return render(); }
+});
+function renderExcludeAsk(no){
+  const L = S.pl.lines.find(x => x.no === no), host = document.querySelector(`[data-move="${no}"]`)?.closest("td");
+  if (!host) return;
+  host.innerHTML = `<div style="display:grid;gap:6px;min-width:220px"><input id="ex-reason" placeholder="Why is line ${no} left out?" style="padding:6px 8px;border:1px solid var(--line);border-radius:7px"><div><button class="btn sm primary" id="ex-ok">Leave out</button> <button class="btn sm" id="ex-cancel">Cancel</button></div></div>`;
+  $("ex-ok").onclick = () => { const r = $("ex-reason").value.trim(); if (r.length < 3) { toast("Write a short reason; it goes into the audit report"); return; } S.excluded[no] = r; S.signOk = false; toast(`Line ${no} (${L.name}) left out`); render(); };
+  $("ex-cancel").onclick = () => render();
+}
+document.addEventListener("input", e => {
+  const t = e.target;
+  if (t.id === "lookup-q") { clearTimeout(renderLookup.t); const v = t.value; renderLookup.t = setTimeout(() => { S.lookup = v; renderLookup(); }, 180); }
+  if (t.dataset.sign === "name") { S.signName = t.value; const ok = S.signOk && S.signName.trim().length > 1; document.querySelectorAll("[data-download]").forEach(b => { if (b.closest(".signoff")) b.disabled = !(ok && !document.querySelector(".check.fail")); }); }
+  if (t.dataset.hdr) S.hdr[t.dataset.hdr] = t.value;
+});
+window.esadLoad = async (plUrl, xmlUrl) => {   // for testing: load files served next to the page
+  if (plUrl) loadPL(decodeURIComponent(plUrl.split("/").pop()), await (await fetch(plUrl)).arrayBuffer());
+  if (xmlUrl) { S.mode = "existing"; loadXML(decodeURIComponent(xmlUrl.split("/").pop()), await (await fetch(xmlUrl)).text()); prefillDecl(); render(); }
+};
+window.esadState = () => S;
+render();
+})();
+</script>
+</body>
+</html>
